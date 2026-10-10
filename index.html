@@ -779,7 +779,7 @@ function contentMatchesQuery(c, words){ return itemMatchesQuery(contentHaystack(
 /* ============================================================
    API — backend local (busca de vídeos e conteúdo gerado por IA)
    ============================================================ */
-const API_BASE_URL = (typeof window !== 'undefined' && (window.STUDY_API_URL || window.STUDYFLOW_API_URL)) || 'http://localhost:3000';
+const API_BASE_URL = (typeof window !== 'undefined' && (window.STUDY_API_URL || window.STUDYFLOW_API_URL)) || 'https://studyapp-kyi5.onrender.com';
 const API_TIMEOUT_MS = { search: 12000, ai: 45000 };
 
 class ApiError extends Error{
