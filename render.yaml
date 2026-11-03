@@ -1,0 +1,28 @@
+# Caminho B: STUDY sempre disponível no Render (Web Service Node).
+# As chaves são pedidas no painel na criação do Blueprint (sync: false) e nunca ficam no git.
+services:
+  - type: web
+    name: study
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      # Ex.: https://study.onrender.com (sem barra no fim). Várias origens: separe por vírgula.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # O Render fica na frente do app como proxy: confiar em 1 salto para o limite ser por usuário.
+      - key: TRUST_PROXY
+        value: "1"
+      # Padrões do server.js (por IP, por minuto). Veja os riscos em docs/ACESSO_CELULAR.md.
+      - key: RATE_LIMIT_AI_PER_MIN
+        value: "60"
+      - key: RATE_LIMIT_VIDEOS_PER_MIN
+        value: "120"
+      - key: ENABLE_DEBUG_ENDPOINTS
+        value: "false"
