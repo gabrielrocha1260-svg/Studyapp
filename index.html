@@ -1043,6 +1043,85 @@ async function searchYouTubeVideosDetailed(query){
 }
 async function searchYouTubeVideos(query){ return (await searchYouTubeVideosDetailed(query)).videos; }
 
+/* ---------- Player do YouTube (IFrame Player API) ----------
+   Carregado uma única vez, sob demanda. Se o script não carregar (rede, bloqueador), a promessa falha e o player mostra o erro. */
+let __ytApiPromise = null;
+function loadYouTubeApi(){
+  if(window.YT && window.YT.Player) return Promise.resolve(window.YT);
+  if(__ytApiPromise) return __ytApiPromise;
+  __ytApiPromise = new Promise((resolve, reject)=>{
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = ()=>{ try{ if(typeof prev === 'function') prev(); }catch(e){} resolve(window.YT); };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api'; s.async = true;
+    s.onerror = ()=>{ __ytApiPromise = null; reject(new Error('yt-api')); };
+    document.head.appendChild(s);
+    setTimeout(()=>{ if(!(window.YT && window.YT.Player)){ __ytApiPromise = null; reject(new Error('yt-timeout')); } }, 20000);
+  });
+  return __ytApiPromise;
+}
+
+/* ---------- Tempo assistido das videoaulas (regra dos 75%) ----------
+   Guardamos os TRECHOS do vídeo que tocaram de fato, como intervalos [início, fim] em segundos, unidos entre si:
+   - só conta enquanto o player está em "reproduzindo" (pausa, carregamento e fim não contam);
+   - entre duas amostras, o avanço do vídeo precisa ser compatível com o tempo real decorrido × velocidade;
+     um salto na barra de reprodução não é compatível, então o trecho pulado não entra;
+   - a união dos intervalos impede contar duas vezes o mesmo trecho; trechos vistos em dias diferentes somam.
+   A API não informa "o que foi visto": ela só permite ler o tempo atual. Por isso a medição é por amostragem (a cada 0,5 s)
+   e tem margem de erro de cerca de 1 segundo por trecho. */
+const WATCH_STORAGE_KEY = 'sf_watch_progress';
+const WATCH_THRESHOLD = 0.75;
+function watchKey(contentId, topicIndex, videoId){ return `${contentId}|${topicIndex}|${videoId}`; }
+function addWatchSeg(segs, a, b){
+  if(!(b > a)) return segs || [];
+  const all = [...(segs || []), [a, b]].sort((x, y)=> x[0] - y[0]);
+  const out = [];
+  all.forEach(([s, e])=>{
+    const last = out[out.length - 1];
+    if(last && s <= last[1] + 0.25) last[1] = Math.max(last[1], e);
+    else out.push([s, e]);
+  });
+  return out.map(([s, e])=> [Math.round(s * 100) / 100, Math.round(e * 100) / 100]);
+}
+function watchSecs(segs){ return (segs || []).reduce((a, [s, e])=> a + Math.max(0, e - s), 0); }
+function watchRatio(entry){
+  if(!entry || !(entry.dur > 0)) return 0;
+  return Math.min(1, watchSecs(entry.segs) / entry.dur);
+}
+function cleanWatchEntry(e){
+  if(!e || typeof e !== 'object' || !isValidYouTubeId(e.videoId)) return null;
+  const dur = Number(e.dur) > 0 ? Number(e.dur) : 0;
+  const segs = Array.isArray(e.segs) ? e.segs.filter(x => Array.isArray(x) && x.length === 2 && Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > x[0] && x[0] >= 0) : [];
+  return {videoId: e.videoId, dur, segs: segs.reduce((acc, [s, t])=> addWatchSeg(acc, s, t), []), updatedAt: Number(e.updatedAt) || 0};
+}
+const watchRepo = {
+  _cache: null,
+  all(){
+    if(this._cache) return this._cache;
+    const raw = loadLS(WATCH_STORAGE_KEY, {});
+    const out = {};
+    if(raw && typeof raw === 'object') Object.keys(raw).forEach(k => { const e = cleanWatchEntry(raw[k]); if(e) out[k] = e; });
+    this._cache = out;
+    return out;
+  },
+  get(key){ const e = this.all()[key]; return e ? {...e, segs: e.segs.map(s => [...s])} : null; },
+  put(key, entry){ const e = cleanWatchEntry(entry); if(!e) return; this.all()[key] = e; saveLS(WATCH_STORAGE_KEY, this.all()); },
+};
+/* Um módulo de videoaula pode ser concluído quando o vídeo escolhido para ele foi assistido em pelo menos 75%. */
+function videoTopicWatch(content, topicIndex){
+  const topic = content && content.topics ? content.topics[topicIndex] : null;
+  const vid = topic && topic.video && topic.video.id;
+  if(!isValidYouTubeId(vid)) return {videoId:null, ratio:0, eligible:false};
+  const entry = watchRepo.get(watchKey(content.id, topicIndex, vid));
+  const ratio = watchRatio(entry);
+  return {videoId: vid, ratio, eligible: ratio >= WATCH_THRESHOLD};
+}
+function cleanTopicVideo(v){
+  if(!v || !isValidYouTubeId(v.id)) return null;
+  return {id: v.id, title: String(v.title || '').slice(0, 200), channel: String(v.channel || '').slice(0, 120),
+          thumbnail: safeImageUrl(v.thumbnail), durationSec: Number(v.durationSec) || 0};
+}
+
 /* ============================================================
    IA — resumo de matéria (prévia de descoberta)
    ============================================================ */
@@ -1276,23 +1355,28 @@ function AppProvider({children}){
      `tab` é a raiz; `nav.stack` guarda as telas empilhadas por cima dela, então "Voltar" retorna
      sempre à tela anterior (e não à raiz). */
   const [tab, setTab] = useState('home');
-  const [nav, setNav] = useState({stack: [], view: null});
+  /* Fase 4: cada tela empilhada guarda a posição de rolagem (_y) de quando foi deixada; a raiz (aba) guarda rootY.
+     Ao voltar, o AppShell restaura essa posição em vez de ir ao topo. */
+  const [nav, setNav] = useState({stack: [], view: null, rootY: 0});
   const view = nav.view;
   const sameView = (a, b)=> !!a && !!b && a.name === b.name && (a.contentId || null) === (b.contentId || null);
-  const pushView = (v)=> setNav(n => ({stack: n.view ? [...n.stack, n.view] : n.stack, view: v}));
+  const snapY = ()=> { try{ return window.scrollY || 0; }catch(e){ return 0; } };
+  const leaving = (n)=> n.view ? {stack: [...n.stack, {...n.view, _y: snapY()}], rootY: n.rootY} : {stack: n.stack, rootY: snapY()};
+  const pushView = (v)=> setNav(n => ({...leaving(n), view: v}));
   const replaceView = (v)=> setNav(n => ({...n, view: v}));
   const closeView = ()=> setNav(n => n.stack.length
-    ? {stack: n.stack.slice(0, -1), view: n.stack[n.stack.length - 1]}
-    : {stack: [], view: null});
-  const resetNav = ()=> setNav({stack: [], view: null});
+    ? {stack: n.stack.slice(0, -1), view: n.stack[n.stack.length - 1], rootY: n.rootY}
+    : {stack: [], view: null, rootY: n.rootY});
+  const resetNav = ()=> setNav({stack: [], view: null, rootY: 0});
   /* Vai para uma tela; se ela já está na pilha, volta até ela (evita ciclos Detalhe → Módulo → Detalhe). */
   const goToView = (v)=> setNav(n => {
     for(let i = n.stack.length - 1; i >= 0; i--){
-      if(sameView(n.stack[i], v)) return {stack: n.stack.slice(0, i), view: v};
+      if(sameView(n.stack[i], v)) return {stack: n.stack.slice(0, i), view: {...v, _y: n.stack[i]._y}, rootY: n.rootY};
     }
     if(sameView(n.view, v)) return {...n, view: v};
-    return {stack: n.view ? [...n.stack, n.view] : n.stack, view: v};
+    return {...leaving(n), view: v};
   });
+  const restoreY = view ? (view._y || 0) : (nav.rootY || 0);
   const goTab = (key)=>{ resetNav(); setTab(key); };
 
   /* ---------- ESTADO DO APP ---------- */
@@ -1466,20 +1550,56 @@ function AppProvider({children}){
     const c = contents.find(x=>x.id===contentId);
     if(!c) return;
     setLastContentId(contentId);
-    /* D2: abrir um módulo é só ACESSO ao conteúdo. O tempo de foco só começa em "Começar foco". */
-    pushView({name:'module', contentId, topicIndex});
+    /* D2: abrir um módulo é só ACESSO ao conteúdo. O tempo de foco só começa em "Começar foco".
+       Fase 4: de um módulo para outro do mesmo conteúdo, a tela é substituída (não empilha), então "Voltar"
+       leva sempre à lista de módulos. Se a lista de módulos já está na pilha, volta até ela antes de abrir. */
+    const v = {name:'module', contentId, topicIndex};
+    setNav(n => {
+      if(n.view && n.view.name === 'module' && n.view.contentId === contentId) return {...n, view: v};
+      return {...leaving(n), view: v};
+    });
+  };
+  /* Vídeo escolhido para um módulo de videoaula: fica salvo no próprio módulo (sf_contents), para o progresso
+     assistido continuar valendo para o mesmo vídeo depois de atualizar a página. */
+  const setTopicVideo = (contentId, topicIndex, video)=>{
+    const v = cleanTopicVideo(video);
+    if(!v) return;
+    setContents(prev => prev.map(x => {
+      if(x.id !== contentId || !x.topics || !x.topics[topicIndex]) return x;
+      const cur = x.topics[topicIndex].video;
+      if(cur && cur.id === v.id && cur.title === v.title && cur.durationSec === v.durationSec) return x;
+      return {...x, topics: x.topics.map((t, i) => i === topicIndex ? {...t, video: v} : t)};
+    }));
+  };
+  const noteWatchedVideo = (video, context)=>{
+    if(!video || !isValidYouTubeId(video.id)) return;
+    setLastWatchedVideo(prev => {
+      if(prev && prev.id === video.id && prev.contentId === ((context && context.contentId) || null) && Date.now() - (prev.watchedAt || 0) < 60000) return prev;
+      return {
+        id: video.id, title: video.title || '', channel: video.channel || '',
+        thumbnail: safeImageUrl(video.thumbnail), description: video.description || '',
+        subjectId: (context && context.subjectId) || null, topic: (context && context.topic) || null,
+        contentId: (context && context.contentId) || null,
+        topicIndex: context && Number.isInteger(context.topicIndex) ? context.topicIndex : null,
+        watchedAt: Date.now(),
+      };
+    });
   };
   const openCalendario = (dateStr)=> pushView({name:'calendario', date: typeof dateStr === 'string' ? dateStr : null});
 
-  const completeTopic = (contentId, topicIndex)=>{
+  const completeTopic = (contentId, topicIndex, opts)=>{
     const c = contents.find(x=>x.id===contentId);
     const st = c ? getTopicStatus(c, topicIndex) : null;
     if(!st || st === TOPIC_STATUS.COMPLETED) return false;
-    if(getTopicType(c, topicIndex) === MODULE_TYPES.QUIZ) return false;
+    const ttype = getTopicType(c, topicIndex);
+    if(ttype === MODULE_TYPES.QUIZ) return false;
+    /* Regra da videoaula: só conclui com ≥ 75% do vídeo assistido. Exceção: quando nenhuma videoaula foi encontrada
+       para o tema (opts.noVideo), o módulo pode ser concluído para a trilha não travar. */
+    if(ttype === MODULE_TYPES.VIDEO && !(opts && opts.noVideo) && !videoTopicWatch(c, topicIndex).eligible) return false;
     setContents(prev => applyTopicCompletion(prev, contentId, topicIndex));
     return true;
   };
-  const completeModule = (contentId, topicIndex)=> completeTopic(contentId, topicIndex);
+  const completeModule = (contentId, topicIndex, opts)=> completeTopic(contentId, topicIndex, opts);
 
   const submitModuleQuiz = (contentId, topicIndex, score)=>{
     const passed = score >= MODULE_PASSING_SCORE;
@@ -1516,7 +1636,7 @@ function AppProvider({children}){
   const openJornada = (contentId)=> pushView({name:'jornada', contentId: typeof contentId === 'string' ? contentId : null});
   const openConfiguracoes = ()=> pushView({name:'configuracoes'});
   const openTarefas = ()=> pushView({name:'tarefas'});
-  const openCriarConteudo = ()=> pushView({name:'criar-conteudo'});
+  const openCriarConteudo = (subjectId)=> pushView({name:'criar-conteudo', subjectId: typeof subjectId === 'string' && SUBJECTS[subjectId] ? subjectId : null});
   const openMaterias = ()=> pushView({name:'materias'});
 
   /* Meta única: a meta de toda sessão é settings.focusMin (Configurações). Ela é gravada na sessão ao começar,
@@ -1657,7 +1777,7 @@ function AppProvider({children}){
     session, elapsedSec, startSession, startPlannerSession, pauseSession, resumeSession,
     timerExpanded, setTimerExpanded, timerPos, setTimerPos, confirmEnd, setConfirmEnd, fullScreenFocus, setFullScreenFocus, confirmEndSession,
     completedSession, dismissCompletedSession, showCompletedSummary, setCompletedSession,
-    lastWatchedVideo, openYouTubeVideo,
+    lastWatchedVideo, openYouTubeVideo, setTopicVideo, noteWatchedVideo, restoreY,
     tasks, toggleTask, addTask, deleteTask,
     planner, savePlannerItem, deletePlannerItem, togglePlannerDone,
     subjectsStore, saveSubject, subjectSheet, openSubjectSheet, closeSubjectSheet,
@@ -2441,36 +2561,17 @@ function SubjectPreviewModal({ item, onClose }){
       <div className="mt-6">
         {alreadyAdded ? (
           <>
-            <p role="status" className="text-[14px] font-semibold text-sf-text flex items-center gap-2"><span className="text-sf-success inline-flex"><IconCheck size={16}/></span>{justAdded ? 'Adicionado a Meus conteúdos' : 'Já está em Meus conteúdos'}</p>
+            <p role="status" className="text-[14px] font-semibold text-sf-text flex items-center gap-2"><span className="text-sf-success inline-flex"><IconCheck size={16}/></span>{justAdded ? `Adicionado em ${subjName(item.subjectId)}` : `Já está em ${subjName(item.subjectId)}`}</p>
             <button type="button" onClick={handleOpen} disabled={!userContent} className="sf-btn sf-btn-primary w-full mt-3 h-12 text-[14px]">Abrir conteúdo</button>
             <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Continuar explorando</button>
           </>
         ) : (
           <>
-            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px]">Adicionar a Meus conteúdos</button>
+            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px]">Adicionar em {subjName(item.subjectId)}</button>
             <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Fechar</button>
           </>
         )}
       </div>
-    </ModalShell>
-  );
-}
-
-function CollectionPreviewSheet({ content, onClose }){
-  const { liveSessions, openDetalhe } = useApp();
-  const mine = liveSessions.filter(s => s.contentId === content.id);
-  const studiedMin = mine.reduce((a, s) => a + (s.durationMin || 0), 0);
-  const prog = getContentProgress(content);
-  return (
-    <ModalShell onClose={onClose} labelledBy="collection-title" z={40}>
-      <div className="flex items-center gap-3"><SubjectTile subjectId={content.subjectId}/><span className="text-[14px] text-sf-muted">{subjName(content.subjectId)}</span></div>
-      <h2 id="collection-title" className="sf-ed-title text-sf-text mt-4">{content.title}</h2>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">{modulesLabel(content)}{prog.total ? ` · ${prog.pct}%` : ''}{mine.length ? ` · ${fmtMin(studiedMin)} de foco` : ''}</p>
-      {prog.total > 0 && <SegmentedTrail className="mt-4" states={trailStates(content)} label={`Trilha de ${content.title}`}/>}
-      <button type="button" onClick={()=>{ onClose(); openDetalhe(content.id); }} className="sf-btn sf-btn-primary w-full mt-6 h-12 text-[14px]">
-        {prog.completed > 0 ? 'Continuar estudando' : 'Abrir conteúdo'}
-      </button>
-      <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Fechar</button>
     </ModalShell>
   );
 }
@@ -2789,8 +2890,17 @@ function HomeScreen(){
       video: { id: w.id, title: w.title || 'Vídeo', channel: w.channel || 'YouTube', thumbnail: safeImageUrl(w.thumbnail),
                description: w.description || '', subjectId: w.subjectId || null },
       context: { subjectId: w.subjectId, topic: w.topic },
+      contentId: w.contentId || null, topicIndex: Number.isInteger(w.topicIndex) ? w.topicIndex : null,
     };
   }, [lastWatchedVideo]);
+  /* Fase 4: vídeo assistido dentro de um módulo reabre o próprio módulo (onde o tempo assistido é contado). */
+  const openContinueVideo = ()=>{
+    const cv = continueVideo;
+    if(!cv) return;
+    const c = cv.contentId ? contents.find(x => x.id === cv.contentId) : null;
+    if(c && c.topics && c.topics[cv.topicIndex]) openModule(c.id, cv.topicIndex);
+    else openYouTubeVideo(cv.video, null, cv.context);
+  };
 
   const priorityContent = useMemo(()=> pickPriorityContent(contents), [contents]);
   const otherContents = useMemo(
@@ -2883,7 +2993,7 @@ function HomeScreen(){
       {continueVideo && (
         <section className="px-5 mt-10" aria-labelledby="h-video">
           <SectionTitle id="h-video">Última videoaula assistida</SectionTitle>
-          <button type="button" onClick={()=> openYouTubeVideo(continueVideo.video, null, continueVideo.context)}
+          <button type="button" onClick={openContinueVideo}
             className="mt-3 w-full flex items-start gap-3 text-left bg-transparent border-0 p-0 cursor-pointer" aria-label={`Abrir vídeo ${continueVideo.video.title}`}>
             <span className="relative w-24 h-[54px] rounded-xl overflow-hidden flex items-center justify-center shrink-0" style={{background:'var(--bg-elevated)'}}>
               {continueVideo.video.thumbnail && <img src={continueVideo.video.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover"/>}
@@ -2970,100 +3080,179 @@ function HomeScreen(){
   );
 }
 
-/* Explorar (A03): busca, filtro por matéria, Meus conteúdos com trilha e catálogo agrupado por matéria (sem tempos). */
+/* Explorar (Fase 4): matérias como gavetas recolhíveis; os conteúdos ficam dentro da matéria (Matéria → Conteúdos).
+   - Resumo da matéria: nº de conteúdos e de conteúdos concluídos; a barra mostra os MÓDULOS concluídos da matéria.
+   - Tocar num conteúdo abre direto a lista de módulos (sem prévia intermediária).
+   - Sugestões do catálogo ficam dentro da matéria a que pertencem, depois dos seus conteúdos.
+   - Busca: mostra só as matérias com resultado, já abertas. As gavetas lembram o estado durante a sessão. */
+const ORPHAN_SUBJECT = '__sem-materia';
+function subjectSummary(items){
+  const n = items.length;
+  let doneN = 0, modDone = 0, modTotal = 0;
+  items.forEach(c => { const p = getContentProgress(c); modDone += p.completed; modTotal += p.total; if(p.total > 0 && p.completed === p.total) doneN++; });
+  return {n, doneN, modDone, modTotal, pct: modTotal ? Math.round(modDone / modTotal * 100) : 0};
+}
+function contentStateLabel(c){
+  const p = getContentProgress(c);
+  if(p.total > 0 && p.completed === p.total) return 'Concluído';
+  return modulesLabel(c);
+}
+function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview}){
+  const [stored, setStored] = useDrawerState(`materia:${sid}`);
+  const open = searching ? true : stored;
+  const sum = subjectSummary(items);
+  const listId = `gaveta-${sid}`;
+  const orphan = sid === ORPHAN_SUBJECT;
+  const name = orphan ? 'Sem matéria' : subjName(sid);
+  const line = sum.n === 0
+    ? 'Ainda não há conteúdos cadastrados.'
+    : `${sum.n} ${plural(sum.n, 'conteúdo', 'conteúdos')} · ${sum.doneN} ${plural(sum.doneN, 'concluído', 'concluídos')}`;
+  return (
+    <li className="sf-row-div">
+      <h3 className="m-0">
+        <button type="button" onClick={()=> !searching && setStored(o => !o)} aria-expanded={open} aria-controls={listId}
+          className="w-full flex items-center gap-3 py-3 min-h-[64px] bg-transparent border-0 text-left cursor-pointer"
+          aria-label={`${name}: ${line}${sum.modTotal ? ` Módulos concluídos: ${sum.pct}%.` : ''}`}>
+          {orphan ? <span className="sf-subj" aria-hidden="true" style={{width:44, height:44, borderRadius:12}}><IconBook size={20}/></span> : <SubjectTile subjectId={sid}/>}
+          <span className="flex-1 min-w-0" aria-hidden="true">
+            <span className="block text-[17px] leading-[22px] font-semibold text-sf-text truncate">{name}</span>
+            <span className="block text-[14px] leading-[18px] text-sf-muted mt-0.5 tnum">{line}</span>
+            {sum.modTotal > 0 && (
+              <span className="block mt-2 max-w-[220px]">
+                <span className="block rounded-full bg-sf-overlay" style={{height:3}}>
+                  <span className="block rounded-full" style={{height:3, width:`${sum.pct}%`, background: sum.pct >= 100 ? 'var(--success)' : 'var(--blue-400)'}}/>
+                </span>
+              </span>
+            )}
+          </span>
+          <span className="text-sf-muted shrink-0 inline-flex" aria-hidden="true" style={{transform:`rotate(${open ? 90 : 0}deg)`, transition:'transform var(--dur-base) var(--ease-out)'}}><IconChevronR/></span>
+        </button>
+      </h3>
+      <div className="sf-drawer" data-open={open ? 'true' : 'false'}>
+        <div className="sf-drawer-inner">
+          <div id={listId} hidden={!open} className="pl-[56px] pb-3">
+            {items.length > 0 && (
+              <ul className="list-none p-0 m-0" aria-label={`Conteúdos de ${name}`}>
+                {items.map(c => {
+                  const p = getContentProgress(c);
+                  const complete = p.total > 0 && p.completed === p.total;
+                  return (
+                    <li key={c.id}>
+                      <button type="button" onClick={()=>onOpenContent(c.id)}
+                        className="w-full text-left py-2.5 flex items-center gap-3 bg-transparent border-0 cursor-pointer min-h-[52px]"
+                        aria-label={`${c.title}. ${contentStateLabel(c)}. Abrir módulos`}>
+                        <span className="flex-1 min-w-0" aria-hidden="true">
+                          <span className="sf-ed-content text-sf-text block truncate">{c.title}</span>
+                          <span className="text-[14px] leading-[18px] block truncate mt-0.5" style={{color: complete ? 'var(--success)' : 'var(--text-secondary)'}}>
+                            {complete && <span className="inline-flex align-[-2px] mr-1"><IconCheck size={14}/></span>}{contentStateLabel(c)}
+                          </span>
+                        </span>
+                        <span className="text-sf-muted shrink-0" aria-hidden="true"><IconChevronR/></span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {!orphan && (
+              <button type="button" onClick={()=>onAdd(sid)} aria-label={`Adicionar conteúdo em ${name}`}
+                className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 text-[14px] font-semibold inline-flex items-center gap-1.5">
+                <IconPlus size={16}/> Adicionar conteúdo
+              </button>
+            )}
+            {suggestions.length > 0 && (
+              <div className="mt-2">
+                <p className="text-[13px] leading-[18px] font-semibold text-sf-muted">Sugestões do STUDY</p>
+                <ul className="list-none p-0 m-0 mt-1">
+                  {suggestions.map(d => (
+                    <li key={d.id}>
+                      <button type="button" onClick={()=>onPreview(d)} aria-label={`Ver prévia de ${d.title}`}
+                        className="w-full text-left py-2 flex items-center gap-3 bg-transparent border-0 cursor-pointer min-h-[44px]">
+                        <span className="flex-1 min-w-0 text-[15px] leading-[20px] text-sf-muted truncate">{d.title}</span>
+                        <span className="text-[13px] font-semibold text-sf-muted shrink-0">Ver prévia</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function ExplorarScreen(){
-  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects} = useApp();
+  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects, openDetalhe, openSubjectSheet, subjectsStore} = useApp();
   const [query,setQuery] = useState('');
-  const [activeSubject, setActiveSubject] = useState(null);
-  const [preview,setPreview] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
 
   const words = useMemo(()=> queryWords(query), [query]);
-  const matches = (subjectId)=> !activeSubject || subjectId === activeSubject;
-  const myCollection = useMemo(()=> contents.filter(c => matches(c.subjectId) && contentMatchesQuery(c, words)), [contents, words, activeSubject]);
-  const discoverableNotAdded = useMemo(()=> discoverableSubjects.filter(d => !isUserSubject(d.id)), [discoverableSubjects, contents]);
-  const discoverableFiltered = useMemo(()=> discoverableNotAdded.filter(d => matches(d.subjectId) && contentMatchesQuery(d, words)), [discoverableNotAdded, words, activeSubject]);
-  const subjectsAvail = useMemo(()=>{
-    const ids = []; [...contents, ...discoverableSubjects].forEach(c => { if(c.subjectId && SUBJECTS[c.subjectId] && !ids.includes(c.subjectId)) ids.push(c.subjectId); });
-    return ids;
-  }, [contents, discoverableSubjects]);
+  const searching = words.length > 0;
   const groups = useMemo(()=>{
-    const order = []; const map = {};
-    discoverableFiltered.forEach(d => { if(!map[d.subjectId]){ map[d.subjectId] = []; order.push(d.subjectId); } map[d.subjectId].push(d); });
-    return order.map(id => ({id, items: map[id]}));
-  }, [discoverableFiltered]);
-  const previewContent = contents.find(c=>c.id===preview);
+    const ids = Object.keys(SUBJECTS);
+    const map = {}; ids.forEach(id => { map[id] = {items:[], suggestions:[]}; });
+    const orphans = [];
+    contents.forEach(c => {
+      if(searching && !contentMatchesQuery(c, words)) return;
+      if(map[c.subjectId]) map[c.subjectId].items.push(c); else orphans.push(c);
+    });
+    discoverableSubjects.forEach(d => {
+      if(isUserSubject(d.id) || !map[d.subjectId]) return;
+      if(searching && !contentMatchesQuery(d, words)) return;
+      map[d.subjectId].suggestions.push(d);
+    });
+    const list = ids.map(id => ({id, ...map[id]}));
+    if(orphans.length) list.push({id: ORPHAN_SUBJECT, items: orphans, suggestions: []});
+    return searching ? list.filter(g => g.items.length || g.suggestions.length) : list;
+  }, [contents, words, discoverableSubjects, subjectsStore]);
   const openPreviewItem = (item)=> setPreviewItem({
     id: item.id, title: item.title, subjectId: item.subjectId, unitLabel: item.unitLabel, estMinutes: item.estMinutes, desc: item.desc,
     topics: (item.topics || []).map(t => ({ t: t.t || t, done: false })),
   });
-  const nothing = myCollection.length === 0 && discoverableFiltered.length === 0 && (query.trim() || activeSubject);
 
   return (
     <div className="pt-16 px-5 pb-8">
       <div className="flex items-start justify-between gap-3">
         <ScreenTitle>Explorar</ScreenTitle>
-        <button type="button" onClick={openCriarConteudo} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0">Criar conteúdo</button>
+        <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0">Criar conteúdo</button>
       </div>
 
       <label className="sf-fieldbox mt-5 h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
         <span className="text-sf-muted inline-flex" aria-hidden="true"><IconSearch size={20}/></span>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar temas ou matérias"
-          aria-label="Buscar temas ou matérias" enterKeyHint="search" autoComplete="off"
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar conteúdos ou matérias"
+          aria-label="Buscar conteúdos ou matérias" enterKeyHint="search" autoComplete="off"
           className="bg-transparent border-0 outline-none text-[16px] text-sf-text flex-1 min-w-0 h-11" style={{fontFamily:'inherit'}}/>
         {query && <button type="button" onClick={()=>setQuery('')} aria-label="Limpar busca" className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px]">Limpar</button>}
       </label>
 
-      <div className="carousel-x flex gap-2 mt-3 -mx-5 px-5 overflow-x-auto" role="group" aria-label="Filtrar por matéria">
-        <button type="button" onClick={()=>setActiveSubject(null)} aria-pressed={!activeSubject} className="sf-chip sf-chip-check h-11 px-3.5 rounded-xl text-[14px] shrink-0">Todas</button>
-        {subjectsAvail.map(id => (
-          <button type="button" key={id} onClick={()=>setActiveSubject(a => a === id ? null : id)} aria-pressed={activeSubject===id}
-            className="sf-chip sf-chip-check h-11 px-3.5 rounded-xl text-[14px] shrink-0 whitespace-nowrap">{subjName(id)}</button>
-        ))}
-      </div>
-
-      {nothing ? (
+      {searching && groups.length === 0 ? (
         <div className="mt-8" role="status">
-          <p className="text-[16px] leading-[22px] font-semibold text-sf-text">{query.trim() ? `Nada encontrado para “${query.trim()}”` : 'Nada encontrado nesta matéria'}</p>
-          <p className="text-[14px] leading-[20px] text-sf-muted mt-1">A busca ignora acentos. Tente outro termo ou crie um conteúdo com esse tema.</p>
-          <button type="button" onClick={openCriarConteudo} className="sf-btn sf-btn-secondary w-full mt-4 h-12 text-[14px]">Criar conteúdo</button>
+          <p className="text-[16px] leading-[22px] font-semibold text-sf-text">Nada encontrado para “{query.trim()}”</p>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Tente outro termo ou crie um conteúdo com esse tema.</p>
+          <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary w-full mt-4 h-12 text-[14px]">Criar conteúdo</button>
         </div>
       ) : (
-        <>
-          {(myCollection.length > 0 || contents.length > 0) && (
-            <section className="mt-6" aria-labelledby="h-meus">
-              <div className="flex items-center justify-between">
-                <SectionTitle id="h-meus">Meus conteúdos</SectionTitle>
-                <button type="button" onClick={()=>openJornada()} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver trilhas</button>
-              </div>
-              {myCollection.length === 0
-                ? <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Nenhum dos seus conteúdos corresponde ao filtro.</p>
-                : myCollection.map(c => <ContentRow key={c.id} c={c} showPct={false} trail onClick={()=>setPreview(c.id)}/>)}
-            </section>
+        <section className="mt-6" aria-labelledby="h-materias">
+          <div className="flex items-center justify-between">
+            <SectionTitle id="h-materias">{searching ? 'Resultados por matéria' : 'Matérias'}</SectionTitle>
+            {contents.length > 0 && <button type="button" onClick={()=>openJornada()} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver trilhas</button>}
+          </div>
+          <ul className="list-none p-0 m-0 mt-1">
+            {groups.map(g => (
+              <SubjectDrawer key={g.id} sid={g.id} items={g.items} suggestions={g.suggestions} searching={searching}
+                onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem}/>
+            ))}
+          </ul>
+          {!searching && (
+            <button type="button" onClick={()=>openSubjectSheet({})} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-2 text-[14px] font-semibold inline-flex items-center gap-1.5">
+              <IconPlus size={16}/> Nova matéria
+            </button>
           )}
-
-          {groups.map(g => (
-            <section key={g.id} className="mt-8" aria-labelledby={`h-subj-${g.id}`}>
-              <div className="flex items-center gap-2.5">
-                <SubjectTile subjectId={g.id} size="sm"/>
-                <h2 id={`h-subj-${g.id}`} className="flex-1 text-[18px] leading-[24px] font-bold text-sf-text">{subjName(g.id)}</h2>
-                <span className="text-[14px] text-sf-muted">{g.items.length} {plural(g.items.length, 'conteúdo', 'conteúdos')}</span>
-              </div>
-              <div className="mt-1 pl-[38px]">
-                {g.items.map(d => (
-                  <button type="button" key={d.id} onClick={()=>openPreviewItem(d)} className="sf-row-div w-full text-left py-3 flex items-center gap-3 bg-transparent border-0 cursor-pointer" aria-label={`Ver prévia de ${d.title}`}>
-                    <span className="flex-1 min-w-0 sf-ed-content text-sf-text truncate">{d.title}</span>
-                    <span className="text-sf-muted shrink-0"><IconChevronR/></span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-          {discoverableNotAdded.length === 0 && <p className="text-[14px] leading-[20px] text-sf-muted mt-8">Você já adicionou todos os conteúdos do catálogo. Crie um conteúdo próprio quando quiser.</p>}
-        </>
+        </section>
       )}
 
-      {previewContent && <CollectionPreviewSheet content={previewContent} onClose={()=>setPreview(null)}/>}
       {previewItem && <SubjectPreviewModal item={previewItem} onClose={()=>setPreviewItem(null)}/>}
     </div>
   );
@@ -3148,8 +3337,21 @@ function DetalheScreen({contentId}){
 
 /* Gaveta de módulos (briefing): fechada por padrão. O cabeçalho já informa progresso e o próximo módulo;
    aberta, mostra todos os módulos com tipo, estado e número. Botão com aria-expanded/aria-controls; Enter/Espaço alternam. */
+/* Estado aberto/fechado das gavetas, por sessão do navegador: ao voltar de um módulo, a lista continua como estava
+   (e a rolagem restaurada cai no mesmo lugar). É só conveniência local: se o armazenamento falhar, a gaveta abre fechada. */
+const drawerMemory = {
+  _key: 'sf_drawers_open',
+  _get(){ try{ const v = JSON.parse(sessionStorage.getItem(this._key) || '{}'); return v && typeof v === 'object' ? v : {}; }catch(e){ return {}; } },
+  get(id, fallback=false){ const v = this._get()[id]; return typeof v === 'boolean' ? v : fallback; },
+  set(id, open){ try{ const v = this._get(); v[id] = !!open; sessionStorage.setItem(this._key, JSON.stringify(v)); }catch(e){} },
+};
+function useDrawerState(id, fallback=false){
+  const [open, setOpenRaw] = useState(()=> drawerMemory.get(id, fallback));
+  const setOpen = (fn)=> setOpenRaw(o => { const n = typeof fn === 'function' ? fn(o) : fn; drawerMemory.set(id, n); return n; });
+  return [open, setOpen];
+}
 function ModuleDrawer({c, topics, nextTopicIdx, doneCount, nextMeta, onOpen}){
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDrawerState(`modulos:${c.id}`);
   const listId = `modulos-${c.id}`;
   const summary = nextTopicIdx >= 0
     ? `${doneCount} de ${topics.length} concluídos · próximo: ${nextTopicIdx + 1}, ${nextMeta ? nextMeta.label.toLowerCase() : ''}`
@@ -4369,8 +4571,12 @@ function SubjectSheetForm({sheet}){
   const ident = kind === 'emoji' && emoji ? {type:'emoji', emoji} : {type:'icon', icon};
   const desk = band !== 'mobile';
 
+  /* Fase 4: matérias são as pastas do Explorar; duas com o mesmo nome dividiriam os conteúdos em gavetas iguais. */
+  const fold = (x)=> String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const dupId = !builtin && name.trim() ? Object.keys(SUBJECTS).find(k => k !== editingId && fold(subjName(k)) === fold(name)) : null;
   const save = ()=>{
     if(!(builtin || name.trim().length>0)){ setShowErr(true); if(nameRef.current) nameRef.current.focus(); return; }
+    if(dupId){ setShowErr(true); if(nameRef.current) nameRef.current.focus(); return; }
     if(kind === 'emoji' && !emoji){ setShowErr(true); if(emojiRef.current) emojiRef.current.focus(); return; }
     const id = saveSubject({id: editingId || undefined, name, ident, accent});
     if(sheet.onSaved) sheet.onSaved(id);
@@ -4394,9 +4600,10 @@ function SubjectSheetForm({sheet}){
       <label htmlFor="subject-name" className="block text-[15px] leading-[20px] font-semibold text-sf-muted mt-5 mb-2">Nome</label>
       <input id="subject-name" ref={nameRef} value={builtin ? subjName(editingId) : name} onChange={e=>setName(e.target.value)} readOnly={builtin} maxLength={40}
         placeholder="Ex.: Biologia" className={INPUT_CLS} style={{color: builtin ? 'var(--text-secondary)' : 'var(--text-primary)'}}
-        aria-invalid={showErr && !builtin && !name.trim() ? 'true' : undefined} aria-describedby={builtin ? 'subject-name-hint' : (showErr && !name.trim() ? 'subject-name-err' : undefined)}/>
+        aria-invalid={showErr && !builtin && !name.trim() ? 'true' : undefined} aria-describedby={builtin ? 'subject-name-hint' : ((showErr && !name.trim()) || dupId ? 'subject-name-err' : undefined)}/>
       {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">O nome das matérias padrão não muda; a identificação e a cor, sim.</p>}
       {showErr && !builtin && !name.trim() && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Dê um nome para a matéria.</p>}
+      {dupId && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Já existe a matéria {subjName(dupId)}. Use outro nome ou escolha a matéria existente.</p>}
 
       <p id="subject-ident-label" className="text-[15px] leading-[20px] font-semibold text-sf-muted mt-5 mb-2">Identificação</p>
       <div className="sf-seg w-full" role="radiogroup" aria-labelledby="subject-ident-label">
@@ -4580,7 +4787,8 @@ function JornadaScreen({contentId}){
                           className="sf-btn sf-btn-primary w-full mt-2.5 h-11 text-[12px] font-semibold flex items-center justify-center gap-1.5">
                           <IconPlay size={11}/> Abrir módulo
                         </button>
-                        {ttype !== MODULE_TYPES.QUIZ && (
+                        {/* Videoaula: a conclusão segue a regra dos 75% e é confirmada no próprio módulo. */}
+                        {ttype !== MODULE_TYPES.QUIZ && (ttype !== MODULE_TYPES.VIDEO || videoTopicWatch(c, i).eligible) && (
                           <button type="button" onClick={()=>completeTopic(c.id, i)}
                             className="sf-btn sf-btn-secondary w-full mt-2 h-11 text-[12px] font-semibold flex items-center justify-center gap-1.5">
                             <IconCheck size={12}/> Concluir etapa
@@ -4881,27 +5089,28 @@ function TarefasScreen(){
   );
 }
 
-function CriarConteudoScreen(){
+/* Criar conteúdo (Fase 4): a matéria vem primeiro — é a pasta onde o conteúdo fica guardado.
+   Depois, só o título. A descrição saiu do cadastro; conteúdos antigos que tinham descrição continuam com ela. */
+function CriarConteudoScreen({initialSubjectId}){
   const {closeView, addUserSubject, openSubjectSheet, openDetalhe} = useApp();
   const [title, setTitle] = useState('');
-  const [subjectId, setSubjectId] = useState(()=> Object.keys(SUBJECTS)[0]);
-  const [desc, setDesc] = useState('');
+  const [subjectId, setSubjectId] = useState(()=> initialSubjectId && SUBJECTS[initialSubjectId] ? initialSubjectId : null);
   const [showErr, setShowErr] = useState(false);
   const titleRef = useRef(null);
+  const subjRef = useRef(null);
+  const subjOk = !!(subjectId && SUBJECTS[subjectId]);
+  const titleOk = !!title.trim();
 
-  /* Briefing: sem "tempo estimado" e sem "tipo de conteúdo" — nenhum dos dois mudava a trilha gerada.
-     A pessoa diz o que quer aprender e o Gemini organiza a trilha. */
   const handleSave = ()=>{
-    if(!title.trim()){ setShowErr(true); if(titleRef.current) titleRef.current.focus(); return; }
+    if(!subjOk){ setShowErr(true); const b = subjRef.current && subjRef.current.querySelector('button'); if(b) b.focus(); return; }
+    if(!titleOk){ setShowErr(true); if(titleRef.current) titleRef.current.focus(); return; }
     const newContent = {
       id: 'user-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
       title: title.trim(),
       subjectId,
       unitLabel: '',
-      desc: desc.trim(),
       topics: [],
     };
-
     const id = addUserSubject(newContent);
     closeView();
     if(id) openDetalhe(id);
@@ -4911,15 +5120,10 @@ function CriarConteudoScreen(){
     <form className="pt-12 px-5 pb-8" onSubmit={(e)=>{ e.preventDefault(); handleSave(); }} noValidate>
       <BackButton onClick={closeView}/>
       <SubTitle className="mt-4">Criar conteúdo</SubTitle>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Diga o que você quer aprender. O STUDY monta a trilha a partir do título, da matéria e da descrição.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Escolha a matéria e diga o que você quer aprender. O STUDY monta a trilha a partir disso.</p>
 
-      <FieldLabel htmlFor="cc-title">Título <span className="font-normal text-sf-muted">(obrigatório)</span></FieldLabel>
-      <input id="cc-title" ref={titleRef} value={title} onChange={e=>setTitle(e.target.value)} maxLength={80} placeholder="Ex.: Cálculo — Derivadas"
-        className={INPUT_CLS} aria-invalid={showErr && !title.trim() ? 'true' : undefined} aria-describedby={showErr && !title.trim() ? 'cc-err' : undefined}/>
-      {showErr && !title.trim() && <p id="cc-err" role="alert" className="text-[12px] text-sf-error mt-2">Dê um título ao conteúdo para continuar.</p>}
-
-      <div role="group" aria-labelledby="cc-subject-label">
-        <p id="cc-subject-label" className="text-[14px] leading-[20px] font-semibold text-sf-text mt-5 mb-2">Matéria</p>
+      <div role="group" aria-labelledby="cc-subject-label" ref={subjRef}>
+        <p id="cc-subject-label" className="text-[14px] leading-[20px] font-semibold text-sf-text mt-5 mb-2">1. Matéria</p>
         <div className="flex gap-2 flex-wrap">
           {Object.keys(SUBJECTS).map(k=>(
             <button type="button" key={k} onClick={()=>setSubjectId(k)} aria-pressed={subjectId===k}
@@ -4930,15 +5134,20 @@ function CriarConteudoScreen(){
           <button type="button" onClick={()=>openSubjectSheet({onSaved:(id)=>setSubjectId(id)})}
             className="sf-chip px-3.5 h-11 rounded-xl text-[14px]" style={{borderStyle:'dashed'}}>+ Nova matéria</button>
         </div>
+        {showErr && !subjOk && <p id="cc-subj-err" role="alert" className="text-[12px] text-sf-error mt-2">Escolha a matéria onde o conteúdo vai ficar.</p>}
       </div>
 
-      <FieldLabel htmlFor="cc-desc" optional>Descrição</FieldLabel>
-      <textarea id="cc-desc" value={desc} onChange={e=>setDesc(e.target.value)} maxLength={300} placeholder="O que você quer aprender sobre o tema"
-        className="sf-input w-full h-20 p-3 text-[16px] resize-none"/>
+      <FieldLabel htmlFor="cc-title">2. Título do conteúdo</FieldLabel>
+      <input id="cc-title" ref={titleRef} value={title} onChange={e=>setTitle(e.target.value)} maxLength={80}
+        placeholder={subjOk && subjectId === 'historia' ? 'Ex.: Ditadura Militar no Brasil' : 'Ex.: Cálculo — Limites'}
+        className={INPUT_CLS} aria-invalid={showErr && !titleOk ? 'true' : undefined} aria-describedby={showErr && !titleOk ? 'cc-err' : undefined}/>
+      {showErr && !titleOk && <p id="cc-err" role="alert" className="text-[12px] text-sf-error mt-2">Dê um título ao conteúdo para continuar.</p>}
 
-      {!title.trim() && <p className="text-[14px] leading-[20px] text-sf-muted mt-6">Preencha o título e escolha uma matéria para criar.</p>}
-      <button type="submit" aria-disabled={!title.trim() ? 'true' : undefined}
-        className={`sf-btn sf-btn-primary w-full ${title.trim() ? 'mt-7' : 'mt-3'} h-12 text-[14px]`}>Criar conteúdo</button>
+      {(!subjOk || !titleOk) && <p className="text-[14px] leading-[20px] text-sf-muted mt-6">{!subjOk ? 'Escolha a matéria e preencha o título para criar.' : 'Preencha o título para criar.'}</p>}
+      <button type="submit" aria-disabled={!subjOk || !titleOk ? 'true' : undefined}
+        className={`sf-btn sf-btn-primary w-full ${subjOk && titleOk ? 'mt-7' : 'mt-3'} h-12 text-[14px]`}>
+        {subjOk ? `Criar em ${subjName(subjectId)}` : 'Criar conteúdo'}
+      </button>
       <button type="button" onClick={closeView} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Cancelar</button>
     </form>
   );
@@ -4995,14 +5204,7 @@ function YouTubeVideoScreen({video, context}){
       <h1 className="text-[20px] font-bold text-sf-text mt-2 break-words">{video.title}</h1>
       <p className="text-[12px] text-sf-muted mt-1">{video.channel}</p>
 
-      <div className="mt-4 rounded-2xl overflow-hidden bg-black" style={{aspectRatio:'16 / 9'}}>
-        <iframe width="100%" height="100%" style={{border:0}}
-          src={youTubeEmbedUrl(video.id)}
-          title={`Videoaula: ${video.title}`}
-          referrerPolicy="strict-origin-when-cross-origin"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen/>
-      </div>
+      <div className="mt-4"><YouTubePlayer video={video}/></div>
       <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer"
         className="mt-2 inline-flex items-center min-h-[44px] text-[12px] font-semibold text-sf-accent underline">
         Não carregou? Abrir no YouTube
@@ -5165,59 +5367,223 @@ function ModuleNotes({contentId, topicIndex}){
   );
 }
 
-function VideoModule({content, topic, topicIndex, onComplete, onOpenVideo}){
+/* Player integrado (Fase 4) — YouTube IFrame Player API.
+   O iframe é criado pela API dentro de um nó que o React não controla (o React só vê o contêiner).
+   Com `trackKey`, mede os trechos assistidos (ver "Tempo assistido das videoaulas") e salva em sf_watch_progress:
+   a cada 4 s durante a reprodução, e sempre que pausa, termina, troca de vídeo ou sai da tela. */
+function YouTubePlayer({video, trackKey, onWatch, onPlay}){
+  const boxRef = useRef(null);
+  const [status, setStatus] = useState('loading');   // loading | ready | error
+  const [errCode, setErrCode] = useState(null);
+  const watchRef = useRef(onWatch); watchRef.current = onWatch;
+  const playRef = useRef(onPlay); playRef.current = onPlay;
+
+  useEffect(()=>{
+    if(!video || !isValidYouTubeId(video.id)) return;
+    let cancelled = false, timer = null, player = null;
+    setStatus('loading'); setErrCode(null);
+    const tr = {
+      playing:false, last:null, lastWall:0, dirty:false, lastSave:0, started:false,
+      entry: trackKey ? (watchRepo.get(trackKey) || {videoId: video.id, dur: Number(video.durationSec) || 0, segs: []}) : null,
+    };
+    const emit = ()=>{ if(tr.entry && watchRef.current) watchRef.current({...tr.entry, segs: tr.entry.segs.map(x => [...x])}); };
+    const save = (force)=>{
+      if(!tr.entry || !tr.dirty) return;
+      if(!force && Date.now() - tr.lastSave < 4000) return;
+      tr.entry.updatedAt = Date.now();
+      watchRepo.put(trackKey, tr.entry);
+      tr.dirty = false; tr.lastSave = Date.now();
+    };
+    const sample = ()=>{
+      if(!player || !tr.entry) return;
+      let t = 0, d = 0, rate = 1;
+      try{ t = Number(player.getCurrentTime()) || 0; d = Number(player.getDuration()) || 0; rate = Number(player.getPlaybackRate()) || 1; }catch(e){ return; }
+      if(d > 0 && Math.abs(d - (tr.entry.dur || 0)) > 1){ tr.entry.dur = d; tr.dirty = true; }
+      const wall = performance.now();
+      if(tr.playing && tr.last != null){
+        const dt = t - tr.last, dw = (wall - tr.lastWall) / 1000;
+        /* Avanço compatível com reprodução contínua: conta. Salto (busca na barra) ou volta: não conta. */
+        if(dt > 0 && dt <= dw * rate + 0.6){ tr.entry.segs = addWatchSeg(tr.entry.segs, tr.last, t); tr.dirty = true; }
+      }
+      tr.last = t; tr.lastWall = wall;
+      emit(); save(false);
+    };
+    const host = document.createElement('div');
+    host.style.width = '100%'; host.style.height = '100%';
+    if(boxRef.current){ boxRef.current.innerHTML = ''; boxRef.current.appendChild(host); }
+
+    loadYouTubeApi().then(YT => {
+      if(cancelled) return;
+      player = new YT.Player(host, {
+        videoId: video.id, width: '100%', height: '100%',
+        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, origin: window.location.origin },
+        events: {
+          onReady: ()=>{
+            if(cancelled) return;
+            setStatus('ready');
+            try{ const iframe = player.getIframe(); iframe.setAttribute('title', `Videoaula: ${video.title || 'vídeo do YouTube'}`); }catch(e){}
+            if(tr.entry){ try{ const d = Number(player.getDuration()) || 0; if(d > 0 && Math.abs(d - (tr.entry.dur||0)) > 1){ tr.entry.dur = d; tr.dirty = true; } }catch(e){} emit(); }
+          },
+          onStateChange: (e)=>{
+            if(cancelled) return;
+            const S = YT.PlayerState;
+            if(e.data === S.PLAYING){
+              tr.playing = true;
+              try{ tr.last = Number(player.getCurrentTime()) || 0; }catch(err){ tr.last = null; }
+              tr.lastWall = performance.now();
+              if(!tr.started){ tr.started = true; if(playRef.current) playRef.current(); }
+              if(!timer) timer = setInterval(sample, 500);
+            } else {
+              if(tr.playing) sample();
+              tr.playing = false; tr.last = null;
+              if(timer){ clearInterval(timer); timer = null; }
+              save(true);
+            }
+          },
+          onError: (e)=>{ if(cancelled) return; setErrCode(e && e.data); setStatus('error'); },
+        },
+      });
+    }).catch(()=>{ if(!cancelled) setStatus('error'); });
+
+    return ()=>{
+      cancelled = true;
+      if(timer) clearInterval(timer);
+      try{ if(tr.playing) sample(); }catch(e){}
+      save(true);
+      try{ if(player && player.destroy) player.destroy(); }catch(e){}
+    };
+  }, [video && video.id, trackKey]);
+
+  const notEmbeddable = errCode === 101 || errCode === 150;
+  return (
+    <div>
+      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black">
+        <div ref={boxRef} className="absolute inset-0"/>
+        {status === 'loading' && (
+          <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Carregando o player">
+            {video.thumbnail && <img src={video.thumbnail} alt="" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover opacity-60"/>}
+            <span className="relative w-14 h-14 rounded-full flex items-center justify-center text-white" style={{background:'rgba(0,0,0,.45)'}}><IconPlay size={18}/></span>
+          </div>
+        )}
+        {status === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" style={{background:'var(--bg-elevated)'}} role="alert">
+            <p className="text-[15px] leading-[20px] font-semibold text-sf-text">{notEmbeddable ? 'O canal não permite exibir este vídeo fora do YouTube' : 'O player não carregou'}</p>
+            <p className="text-[14px] leading-[20px] text-sf-muted mt-1">{notEmbeddable ? 'Escolha outra aula da lista.' : 'Confira sua conexão ou escolha outra aula da lista.'}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const IconInfo = ({size=16,...p}) => <S size={size} {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></S>;
+
+/* Regra comunicada antes de assistir (Fase 4, 1.3): componente informativo discreto, abaixo do título e do canal. */
+function WatchRuleNote({ratio, done, unknownDuration}){
+  const pct = Math.floor((ratio || 0) * 100);
+  return (
+    <div className="mt-3 rounded-xl px-3 py-2.5 flex items-start gap-2.5" style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
+      <span className="text-sf-muted inline-flex mt-0.5 shrink-0" aria-hidden="true"><IconInfo size={16}/></span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[14px] leading-[20px] text-sf-muted">O Study marcará este módulo como concluído quando você assistir a pelo menos 75% do vídeo.</p>
+        {!done && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[13px] leading-[18px] text-sf-muted" aria-live="polite">{unknownDuration ? 'Dê o play para começar a contar.' : `Assistido: ${pct}%`}</span>
+              {!unknownDuration && <span className="text-[13px] leading-[18px] text-sf-muted tnum">meta 75%</span>}
+            </div>
+            <div className="relative mt-1.5">
+              <ProgressBar value={pct} height={4} color={pct >= 75 ? 'var(--success)' : 'var(--blue-400)'} label="Parte do vídeo assistida"/>
+              <span className="absolute top-[-2px] w-px h-2" style={{left:'75%', background:'var(--text-secondary)'}} aria-hidden="true"/>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VideoModule({content, topic, topicIndex, onComplete}){
+  const {setTopicVideo, noteWatchedVideo} = useApp();
   const [state, setState] = useState('loading'); // loading | ok | empty | error
-  const [mainVideo, setMainVideo] = useState(null);
-  const [recommended, setRecommended] = useState([]);
+  const [results, setResults] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const saved = cleanTopicVideo(topic.video);
+  const [watch, setWatch] = useState(null);
+  const playerTopRef = useRef(null);
 
   const query = `${content.title} ${topic.t} aula`;
 
   useEffect(()=>{
     let cancelled = false;
-    setState('loading'); setMainVideo(null); setRecommended([]);
+    setState(saved ? 'ok' : 'loading'); setResults([]);
     searchYouTubeVideosDetailed(query).then(res=>{
       if(cancelled) return;
       if(res.status === 'ok'){
-        setMainVideo(res.videos[0]);
-        setRecommended(res.videos.slice(1));
+        setResults(res.videos);
+        if(!saved) setTopicVideo(content.id, topicIndex, res.videos[0]);
         setState('ok');
-      } else {
+      } else if(!saved){
         setState(res.status === 'empty' ? 'empty' : 'error');
       }
     });
     return ()=>{ cancelled = true; };
   }, [query, reloadKey]);
 
+  const current = saved || (state === 'ok' && results[0] ? cleanTopicVideo(results[0]) : null);
+  const recommended = current ? results.filter(v => v.id !== current.id) : results;
+  const tKey = current ? watchKey(content.id, topicIndex, current.id) : null;
+  useEffect(()=>{ setWatch(tKey ? watchRepo.get(tKey) : null); }, [tKey]);
+
   const {band, top} = useModuleLayout();
   const desk = isDeskBand(band);
   const done = !!(content.topics[topicIndex] && content.topics[topicIndex].done);
+  const ratio = watchRatio(watch);
+  const eligible = ratio >= WATCH_THRESHOLD;
+  const unknownDur = !(watch && watch.dur > 0);
+
+  const chooseVideo = (v)=>{
+    setTopicVideo(content.id, topicIndex, v);
+    if(playerTopRef.current) playerTopRef.current.scrollIntoView({block:'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  };
+
   const loadingEl = state === 'loading' && <div className="mt-4" role="status" aria-label="Buscando videoaulas"><span className="sf-skel w-full aspect-video rounded-2xl"/><span className="sf-skel h-5 w-3/4 mt-4"/><span className="sf-skel h-4 w-1/3 mt-2"/></div>;
   const errorEl = state === 'error' && <ModuleLoadError title="As videoaulas não carregaram" onRetry={()=>setReloadKey(k=>k+1)}/>;
   const emptyEl = state === 'empty' && (
     <div className="mt-6">
       <p className="text-[16px] leading-[22px] font-semibold text-sf-text">Nenhuma videoaula encontrada para este tema</p>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Tente buscar de novo ou conclua o módulo para seguir na trilha.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Tente buscar de novo. Se continuar sem aulas, você pode concluir o módulo para seguir na trilha.</p>
       <button type="button" onClick={()=>setReloadKey(k=>k+1)} className="sf-btn sf-btn-secondary w-full mt-4 h-12 text-[14px]">Buscar de novo</button>
+      {!done && <button type="button" onClick={()=>onComplete({noVideo:true})} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Concluir sem vídeo</button>}
     </div>
   );
-  const playerEl = state === 'ok' && mainVideo && (
-    <button type="button" onClick={()=>onOpenVideo(mainVideo)} aria-label={`Assistir ${mainVideo.title}`}
-      className="w-full mt-4 text-left bg-transparent border-0 p-0 cursor-pointer">
-      <span className="relative w-full aspect-video rounded-2xl overflow-hidden flex items-center justify-center" style={{background:'var(--bg-elevated)'}}>
-        {mainVideo.thumbnail && <img src={mainVideo.thumbnail} alt="" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover"/>}
-        <span className="relative w-14 h-14 rounded-full flex items-center justify-center text-white" style={{background:'rgba(0,0,0,.45)'}}><IconPlay size={18}/></span>
-      </span>
-      <span className="block sf-ed-content text-sf-text mt-4">{mainVideo.title}</span>
-      <span className="block text-[14px] leading-[20px] text-sf-muted mt-0.5">{mainVideo.channel}</span>
-    </button>
+  const playerEl = current && (
+    <div ref={playerTopRef} className="mt-4" style={{scrollMarginTop:16}}>
+      <YouTubePlayer key={current.id} video={current} trackKey={tKey} onWatch={setWatch}
+        onPlay={()=> noteWatchedVideo(current, {subjectId: content.subjectId, topic: topic.t, contentTitle: content.title, contentId: content.id, topicIndex})}/>
+      <h2 className="sf-ed-content text-sf-text mt-4 break-words">{current.title}</h2>
+      {current.channel && <p className="text-[14px] leading-[20px] text-sf-muted mt-0.5">{current.channel}</p>}
+      <WatchRuleNote ratio={ratio} done={done} unknownDuration={unknownDur}/>
+    </div>
   );
+  /* Botão de conclusão: só aparece com ≥ 75% assistido (ou se o módulo já está concluído). */
+  const completeEl = current && (done ? (
+    <div className="mt-6">
+      <p role="status" className="text-[14px] leading-[20px] font-semibold text-sf-text flex items-center gap-2"><span className="text-sf-success inline-flex" aria-hidden="true"><IconCheck size={16}/></span>Módulo concluído</p>
+      <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-secondary mt-3 h-12 text-[14px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Ver todos os módulos</button>
+    </div>
+  ) : eligible ? (
+    <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-primary mt-6 h-12 text-[15px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>
+      Concluir módulo
+    </button>
+  ) : null);
   const relatedEl = (title)=> recommended.length > 0 && (
     <section aria-labelledby={`rel-${topicIndex}`}>
       <PanelHead id={`rel-${topicIndex}`}>{title}</PanelHead>
+      <p className="text-[13px] leading-[18px] text-sf-muted -mt-1 mb-1">Trocar de aula muda o vídeo deste módulo. O tempo assistido é contado por vídeo.</p>
       <div>
         {recommended.map(v=>(
-          <button type="button" key={v.id} onClick={()=>onOpenVideo(v)}
+          <button type="button" key={v.id} onClick={()=>chooseVideo(v)} aria-label={`Assistir neste módulo: ${v.title}`}
             className="sf-row-div w-full text-left py-3 flex items-center gap-3 bg-transparent border-0 cursor-pointer">
             <span className="w-24 h-[54px] rounded-xl overflow-hidden flex items-center justify-center shrink-0 text-sf-muted" style={{background:'var(--bg-elevated)'}}>
               {v.thumbnail ? <img src={v.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover"/> : <IconPlay size={12}/>}
@@ -5239,8 +5605,7 @@ function VideoModule({content, topic, topicIndex, onComplete, onOpenVideo}){
         <div className="sf-col-main">
           {top}
           <div className="mt-6"><ModuleHeader topic={topic}/></div>
-          {loadingEl}{errorEl}{emptyEl}{playerEl}
-          {state !== 'loading' && <button type="button" onClick={onComplete} className="sf-btn sf-btn-secondary mt-6 h-12 px-6 text-[15px] min-w-[280px]">{done ? 'Ver todos os módulos' : 'Concluir módulo'}</button>}
+          {loadingEl}{errorEl}{emptyEl}{playerEl}{completeEl}
         </div>
         <aside className="sf-col-panel" aria-label="Apoio da videoaula">
           <ModuleNotes contentId={content.id} topicIndex={topicIndex}/>
@@ -5248,7 +5613,7 @@ function VideoModule({content, topic, topicIndex, onComplete, onOpenVideo}){
             <PanelHead id={`mods-${topicIndex}`} action={<PanelLink contentId={content.id}/>}>Módulos</PanelHead>
             <ModuleTrailList content={content} currentIndex={topicIndex}/>
           </section>
-          {relatedEl('Vídeos relacionados')}
+          {relatedEl('Outras aulas sobre o tema')}
         </aside>
       </div>
     );
@@ -5258,9 +5623,17 @@ function VideoModule({content, topic, topicIndex, onComplete, onOpenVideo}){
     <div>
       <ModuleHeader topic={topic}/>
       {loadingEl}{errorEl}{emptyEl}{playerEl}
+      {current && (
+        <div className="mt-6">
+          <p className="text-[14px] leading-[20px] text-sf-muted">
+            {done ? `O módulo ${topicIndex+1} de ${content.topics.length} já está na sua trilha.` : `Ao concluir, o módulo ${topicIndex+1} de ${content.topics.length} entra na sua trilha.`}
+          </p>
+          <SegmentedTrail size="sm" className="mt-2" states={trailStates(content, topicIndex)} label={`Trilha de ${content.title}`}/>
+          {completeEl}
+        </div>
+      )}
       {state !== 'loading' && <div className="mt-8"><ModuleNotes contentId={content.id} topicIndex={topicIndex}/></div>}
-      {state === 'ok' && recommended.length > 0 && <div className="mt-8">{relatedEl('Mais aulas sobre este assunto')}</div>}
-      {state !== 'loading' && <ModuleClosing content={content} topicIndex={topicIndex} onComplete={onComplete}/>}
+      {recommended.length > 0 && <div className="mt-8">{relatedEl('Outras aulas sobre o tema')}</div>}
     </div>
   );
 }
@@ -5752,7 +6125,7 @@ function QuizModule({content, topic, topicIndex, onSubmit, existingProgress, onF
 }
 
 function ModuleScreen({contentId, topicIndex}){
-  const {contents, closeView, openDetalhe, openModule, completeModule, submitModuleQuiz, getModuleProgress, openYouTubeVideo} = useApp();
+  const {contents, closeView, openDetalhe, openModule, completeModule, submitModuleQuiz, getModuleProgress} = useApp();
   const band = useBand();
   const [justDone, setJustDone] = useState(false);
   const c = contents.find(x=>x.id===contentId);
@@ -5764,12 +6137,11 @@ function ModuleScreen({contentId, topicIndex}){
   const isDone = !!topic.done;
   const total = c.topics.length;
 
-  const handleComplete = ()=>{
+  const handleComplete = (opts)=>{
     if(isDone){ openDetalhe(contentId); return; }
-    if(completeModule(contentId, topicIndex)){ setJustDone(true); window.scrollTo(0,0); }
+    if(completeModule(contentId, topicIndex, opts)){ setJustDone(true); window.scrollTo(0,0); }
   };
   const handleQuizSubmit = (score)=> submitModuleQuiz(contentId, topicIndex, score);
-  const handleOpenVideo = (v)=> openYouTubeVideo(v, null, { subjectId: c.subjectId, topic: topic.t, contentTitle: c.title });
 
   const top = (
     <div className="flex items-center gap-2 -ml-3">
@@ -5819,7 +6191,7 @@ function ModuleScreen({contentId, topicIndex}){
     <div className={panelLayout ? 'sf-wide pt-12 pb-8' : 'pt-12 px-5 pb-8'}>
       {!panelLayout && top}
       <div className={panelLayout ? '' : 'mt-4'} aria-label={`${meta.label}${isDone ? ', concluído' : ''}`}>
-        {ttype === MODULE_TYPES.VIDEO && <VideoModule content={c} topic={topic} topicIndex={topicIndex} onComplete={handleComplete} onOpenVideo={handleOpenVideo}/>}
+        {ttype === MODULE_TYPES.VIDEO && <VideoModule content={c} topic={topic} topicIndex={topicIndex} onComplete={handleComplete}/>}
         {ttype === MODULE_TYPES.READING && <ReadingModule content={c} topic={topic} topicIndex={topicIndex} onComplete={handleComplete}/>}
         {ttype === MODULE_TYPES.FLASHCARDS && <FlashcardsModule content={c} topic={topic} topicIndex={topicIndex} onComplete={handleComplete}/>}
         {ttype === MODULE_TYPES.QUIZ && (
@@ -5849,7 +6221,7 @@ function Screen(){
       case 'configuracoes': return <ConfiguracoesScreen/>;
       case 'tarefas': return <TarefasScreen/>;
       case 'ajuda': return <AjudaScreen/>;
-      case 'criar-conteudo': return <CriarConteudoScreen/>;
+      case 'criar-conteudo': return <CriarConteudoScreen key={view.subjectId || 'novo'} initialSubjectId={view.subjectId}/>;
     }
   }
   if(tab==='home') return <HomeScreen/>;
@@ -5883,17 +6255,20 @@ function SessionDoneBanner(){
 }
 
 function AppShell(){
-  const { view, tab, user, handleAuth, goTab } = useApp();
+  const { view, tab, user, handleAuth, goTab, restoreY } = useApp();
   const band = useBand();
   useTheme();   // assina o tema: a troca re-renderiza a árvore para recalcular cores derivadas em JS (sem remontar nada)
   const mainRef = useRef(null);
   const firstNav = useRef(true);
   const navKey = `${tab}|${view ? view.name + ':' + (view.contentId || '') + ':' + (view.topicIndex != null ? view.topicIndex : '') + ':' + (view.video ? view.video.id : '') : ''}`;
 
-  // Ao trocar de tela: volta ao topo e move o foco para a área principal (leitores de tela anunciam a nova tela).
+  // Ao trocar de tela: vai ao topo (tela nova) ou à posição em que a tela foi deixada (ao voltar),
+  // e move o foco para a área principal (leitores de tela anunciam a nova tela).
   useEffect(()=>{
     if(firstNav.current){ firstNav.current = false; return; }
-    window.scrollTo(0, 0);
+    const y = restoreY || 0;
+    window.scrollTo(0, y);
+    if(y > 0) requestAnimationFrame(()=> window.scrollTo(0, y));   /* conteúdo que cresce no primeiro quadro (gavetas) */
     if(mainRef.current) mainRef.current.focus({preventScroll:true});
   }, [navKey]);
 
