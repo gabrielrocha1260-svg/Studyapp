@@ -580,7 +580,10 @@ async function generateStructured(label, spec, ctx) {
   if (!genAI) throw new AIError("config", "GEMINI_API_KEY ausente no .env");
   const { prompt, normalize, maxTokens = 1500, temperature = 0.4, timeoutMs = 10000 } = spec;
   const { deadline, rid } = ctx;
-  const order = pickModels(spec.models || modelsFor(label));
+  /* A cota da busca do Google (Grounding) é separada da cota de geração: a saúde de cada modelo é guardada
+     em chaves distintas, para que um 429 da busca não bloqueie quiz, flashcards e trilhas. */
+  const hk = (m) => (spec.grounded ? `${m}+google_search` : m);
+  const order = pickModels((spec.models || modelsFor(label)).map(hk)).map((k) => k.replace(/\+google_search$/, ""));
   const failures = [];
   let fatal = null;
   let quotaWaitMs = null;
@@ -613,7 +616,7 @@ async function generateStructured(label, spec, ctx) {
           }
         }
         const data = normalize(parsed, grounding);
-        markModelOk(modelName);
+        markModelOk(hk(modelName));
         log(label, rid, `✅ ${modelName} em ${now() - t0}ms${tries ? ` (tentativa ${tries + 1})` : ""}`);
         return data;
       } catch (err) {
@@ -626,13 +629,13 @@ async function generateStructured(label, spec, ctx) {
         if (kind === "quota") {
           const ms = retryAfterMs(err);
           quotaWaitMs = Math.min(quotaWaitMs === null ? Infinity : quotaWaitMs, ms || 60000);
-          markModelFailure(modelName, "quota", ms);
+          markModelFailure(hk(modelName), "quota", ms);
           continue outer;
         }
-        if (kind === "notfound") { markModelFailure(modelName, "notfound"); continue outer; }
+        if (kind === "notfound") { markModelFailure(hk(modelName), "notfound"); continue outer; }
         if (kind === "badrequest") {
           if (thinking) { thinking = false; tokens = Math.min(MAX_TOKENS_CAP, tokens + 2048); continue; }
-          markModelFailure(modelName, "badrequest");
+          markModelFailure(hk(modelName), "badrequest");
           continue outer;
         }
         if (kind === "truncated") {
@@ -640,11 +643,11 @@ async function generateStructured(label, spec, ctx) {
           tokens = Math.min(MAX_TOKENS_CAP, Math.round(tokens * 1.7));
           continue;
         }
-        if (kind === "timeout") { markModelFailure(modelName, "timeout"); continue outer; }
+        if (kind === "timeout") { markModelFailure(hk(modelName), "timeout"); continue outer; }
         if (kind === "blocked") continue outer;
 
         // overload, empty, invalid_json, invalid_output, unknown → uma nova tentativa no mesmo modelo
-        if (kind === "overload" || kind === "unknown") markModelFailure(modelName, "overload");
+        if (kind === "overload" || kind === "unknown") markModelFailure(hk(modelName), "overload");
         if (++transient >= 2) continue outer;
         const backoff = Math.min(AI_RETRY_BASE_MS * 2 ** (transient - 1) + Math.floor(Math.random() * 200), Math.max(0, (deadline - now()) / 3));
         await sleep(backoff);
@@ -819,7 +822,9 @@ async function handleAIRequest({ label, params, spec, req, res, fallbackSpec = n
       try {
         try { return await generateStructured(label, spec, { deadline, rid }); }
         catch (err) {
-          if (!fallbackSpec || err.code === "quota" || (err.code === "config" && /chave/i.test(err.message))) throw err;
+          /* Sem fontes disponíveis (cota da busca esgotada, ferramenta recusada, modelo fora do ar): gera a leitura sem
+             Grounding e o app avisa "sem pesquisa na web". Só a chave inválida interrompe de vez. */
+          if (!fallbackSpec || (err.code === "config" && /chave/i.test(err.message))) throw err;
           warn(label, rid, `sem fontes: ${err.code || err.message}; gerando a leitura sem Grounding`);
           return await generateStructured(label, fallbackSpec, { deadline: Math.max(deadline, now() + 15000), rid });
         }
