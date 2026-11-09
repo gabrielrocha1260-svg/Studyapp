@@ -8,6 +8,7 @@ const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai"); // usado só na leitura com fontes (Grounding com Google Search)
 
 /* ============================================================
    UTILITÁRIOS E CONFIGURAÇÃO
@@ -102,8 +103,12 @@ const MODELS_BY_ENDPOINT = buildModelMap();
 const modelsFor = (label) => MODELS_BY_ENDPOINT[label] || MODELS_BY_ENDPOINT.default;
 
 let genAI = null;
+let genAIGrounded = null;
+/* Fontes da leitura: Grounding com Google Search. Desligue com GROUNDING_ENABLED=false (a leitura volta a sair sem fontes). */
+const GROUNDING_ENABLED = envBool("GROUNDING_ENABLED", true);
 if (GEMINI_API_KEY) {
   genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  if (GROUNDING_ENABLED) genAIGrounded = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   console.log("✅ Gemini configurado");
   Object.entries(MODELS_BY_ENDPOINT).forEach(([k, v]) => {
     if (k === "default") return;
@@ -514,6 +519,57 @@ async function runAttempt({ modelName, prompt, maxTokens, temperature, timeoutMs
   return readResponse(await raceTimeout(call, timeoutMs, controller));
 }
 
+/* Leitura com fontes: mesma chamada, com a ferramenta googleSearch. Não usa responseMimeType JSON
+   (vários modelos não aceitam JSON + ferramenta juntos); o texto vem puro e as fontes vêm em groundingMetadata. */
+async function runGroundedAttempt({ modelName, prompt, maxTokens, temperature, timeoutMs }) {
+  const controller = new AbortController();
+  const call = genAIGrounded.models.generateContent({
+    model: modelName,
+    contents: prompt,
+    config: { tools: [{ googleSearch: {} }], maxOutputTokens: maxTokens, temperature, abortSignal: controller.signal },
+  });
+  call.catch(() => {});
+  const resp = await raceTimeout(call, timeoutMs, controller);
+  const cand = resp && resp.candidates && resp.candidates[0];
+  const finish = cand && cand.finishReason;
+  const block = resp && resp.promptFeedback && resp.promptFeedback.blockReason;
+  let text = "";
+  try { text = String(resp.text || ""); } catch (_) { text = ""; }
+  if (!text) throw new AIError(block || finish === "SAFETY" ? "blocked" : "empty", `sem texto (${block || finish || "vazio"})`);
+  return { text, finish, grounding: (cand && cand.groundingMetadata) || null };
+}
+
+/* Converte groundingMetadata em fontes exibíveis. Só entram páginas que a busca do Google devolveu de verdade.
+   "Citadas" = sustentam algum trecho do texto (groundingSupports); "consultadas" = vieram da busca sem trecho ligado. */
+function cleanForMatch(t) { return String(t || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/\s+/g, " ").trim(); }
+function buildSources(grounding, content) {
+  if (!grounding) return { status: "none", items: [], queries: [] };
+  const chunks = Array.isArray(grounding.groundingChunks) ? grounding.groundingChunks : [];
+  const supports = Array.isArray(grounding.groundingSupports) ? grounding.groundingSupports : [];
+  const paragraphs = String(content || "").split(/\n{2,}/).map((x) => cleanForMatch(x));
+  const items = [];
+  chunks.forEach((ch, idx) => {
+    const web = ch && ch.web;
+    if (!web || typeof web.uri !== "string" || !/^https:\/\//i.test(web.uri)) return;
+    items.push({ idx, title: clampStr(web.title || "", 160) || "Fonte sem título", uri: web.uri.slice(0, 2000), paragraphs: [] });
+  });
+  const byIdx = new Map(items.map((it) => [it.idx, it]));
+  for (const sup of supports) {
+    const seg = cleanForMatch(sup && sup.segment && sup.segment.text);
+    if (!seg || seg.length < 12) continue;
+    const pi = paragraphs.findIndex((p) => p.includes(seg) || (seg.length > 40 && p.includes(seg.slice(0, 40))));
+    for (const ci of (sup.groundingChunkIndices || [])) {
+      const it = byIdx.get(ci);
+      if (it && pi >= 0 && !it.paragraphs.includes(pi)) it.paragraphs.push(pi);
+      if (it) it.cited = true;
+    }
+  }
+  items.forEach((it, n) => { it.n = n + 1; it.paragraphs.sort((a, b) => a - b); it.cited = !!it.cited; delete it.idx; });
+  const queries = (Array.isArray(grounding.webSearchQueries) ? grounding.webSearchQueries : []).map((x) => clampStr(x, 160)).filter(Boolean).slice(0, 6);
+  const rendered = grounding.searchEntryPoint && typeof grounding.searchEntryPoint.renderedContent === "string" ? grounding.searchEntryPoint.renderedContent.slice(0, 20000) : "";
+  return { status: items.length ? "grounded" : "none", items: items.slice(0, 12), queries, searchEntryPoint: rendered };
+}
+
 /* Gera, valida e devolve o objeto final. Estratégia por modelo:
    - 400 com thinkingConfig → mesmo modelo sem thinkingConfig (e mais tokens);
    - saída cortada (MAX_TOKENS) → mesmo modelo com mais tokens;
@@ -524,7 +580,10 @@ async function generateStructured(label, spec, ctx) {
   if (!genAI) throw new AIError("config", "GEMINI_API_KEY ausente no .env");
   const { prompt, normalize, maxTokens = 1500, temperature = 0.4, timeoutMs = 10000 } = spec;
   const { deadline, rid } = ctx;
-  const order = pickModels(spec.models || modelsFor(label));
+  /* A cota da busca do Google (Grounding) é separada da cota de geração: a saúde de cada modelo é guardada
+     em chaves distintas, para que um 429 da busca não bloqueie quiz, flashcards e trilhas. */
+  const hk = (m) => (spec.grounded ? `${m}+google_search` : m);
+  const order = pickModels((spec.models || modelsFor(label)).map(hk)).map((k) => k.replace(/\+google_search$/, ""));
   const failures = [];
   let fatal = null;
   let quotaWaitMs = null;
@@ -540,19 +599,24 @@ async function generateStructured(label, spec, ctx) {
       if (remaining < MIN_ATTEMPT_MS) { failures.push({ model: modelName, kind: "budget" }); break outer; }
       const t0 = now();
       try {
-        const { text, finish } = await runAttempt({
-          modelName, prompt, maxTokens: tokens, temperature, thinking,
-          timeoutMs: Math.max(1000, Math.min(Math.round(timeoutMs * AI_TIMEOUT_SCALE), remaining - 200)),
-        });
+        const attemptMs = Math.max(1000, Math.min(Math.round(timeoutMs * AI_TIMEOUT_SCALE), remaining - 200));
+        const { text, finish, grounding } = spec.grounded
+          ? await runGroundedAttempt({ modelName, prompt, maxTokens: tokens, temperature, timeoutMs: attemptMs })
+          : await runAttempt({ modelName, prompt, maxTokens: tokens, temperature, thinking, timeoutMs: attemptMs });
         let parsed;
-        try {
-          parsed = parseModelJson(text);
-        } catch (e) {
-          if (e instanceof AIError && finish === "MAX_TOKENS") throw new AIError("truncated", "saída cortada por limite de tokens");
-          throw e;
+        if (spec.grounded) {
+          if (finish === "MAX_TOKENS") throw new AIError("truncated", "saída cortada por limite de tokens");
+          try { parsed = parseModelJson(text); } catch (_) { parsed = { content: text }; }
+        } else {
+          try {
+            parsed = parseModelJson(text);
+          } catch (e) {
+            if (e instanceof AIError && finish === "MAX_TOKENS") throw new AIError("truncated", "saída cortada por limite de tokens");
+            throw e;
+          }
         }
-        const data = normalize(parsed);
-        markModelOk(modelName);
+        const data = normalize(parsed, grounding);
+        markModelOk(hk(modelName));
         log(label, rid, `✅ ${modelName} em ${now() - t0}ms${tries ? ` (tentativa ${tries + 1})` : ""}`);
         return data;
       } catch (err) {
@@ -565,13 +629,13 @@ async function generateStructured(label, spec, ctx) {
         if (kind === "quota") {
           const ms = retryAfterMs(err);
           quotaWaitMs = Math.min(quotaWaitMs === null ? Infinity : quotaWaitMs, ms || 60000);
-          markModelFailure(modelName, "quota", ms);
+          markModelFailure(hk(modelName), "quota", ms);
           continue outer;
         }
-        if (kind === "notfound") { markModelFailure(modelName, "notfound"); continue outer; }
+        if (kind === "notfound") { markModelFailure(hk(modelName), "notfound"); continue outer; }
         if (kind === "badrequest") {
           if (thinking) { thinking = false; tokens = Math.min(MAX_TOKENS_CAP, tokens + 2048); continue; }
-          markModelFailure(modelName, "badrequest");
+          markModelFailure(hk(modelName), "badrequest");
           continue outer;
         }
         if (kind === "truncated") {
@@ -579,11 +643,11 @@ async function generateStructured(label, spec, ctx) {
           tokens = Math.min(MAX_TOKENS_CAP, Math.round(tokens * 1.7));
           continue;
         }
-        if (kind === "timeout") { markModelFailure(modelName, "timeout"); continue outer; }
+        if (kind === "timeout") { markModelFailure(hk(modelName), "timeout"); continue outer; }
         if (kind === "blocked") continue outer;
 
         // overload, empty, invalid_json, invalid_output, unknown → uma nova tentativa no mesmo modelo
-        if (kind === "overload" || kind === "unknown") markModelFailure(modelName, "overload");
+        if (kind === "overload" || kind === "unknown") markModelFailure(hk(modelName), "overload");
         if (++transient >= 2) continue outer;
         const backoff = Math.min(AI_RETRY_BASE_MS * 2 ** (transient - 1) + Math.floor(Math.random() * 200), Math.max(0, (deadline - now()) / 3));
         await sleep(backoff);
@@ -745,7 +809,7 @@ function sendAIError(res, err, label, rid) {
   return res.status(status).json(body);
 }
 
-async function handleAIRequest({ label, params, spec, req, res }) {
+async function handleAIRequest({ label, params, spec, req, res, fallbackSpec = null }) {
   const rid = req.rid;
   const key = cacheKey(label, params);
   const fresh = cacheGet(key);
@@ -755,7 +819,16 @@ async function handleAIRequest({ label, params, spec, req, res }) {
   try {
     const data = await dedup(key, async () => {
       const release = await gate.acquire(deadline);
-      try { return await generateStructured(label, spec, { deadline, rid }); }
+      try {
+        try { return await generateStructured(label, spec, { deadline, rid }); }
+        catch (err) {
+          /* Sem fontes disponíveis (cota da busca esgotada, ferramenta recusada, modelo fora do ar): gera a leitura sem
+             Grounding e o app avisa "sem pesquisa na web". Só a chave inválida interrompe de vez. */
+          if (!fallbackSpec || (err.code === "config" && /chave/i.test(err.message))) throw err;
+          warn(label, rid, `sem fontes: ${err.code || err.message}; gerando a leitura sem Grounding`);
+          return await generateStructured(label, fallbackSpec, { deadline: Math.max(deadline, now() + 15000), rid });
+        }
+      }
       finally { release(); }
     });
     cacheSet(key, data);
@@ -822,7 +895,7 @@ O último módulo da lista DEVE ser:
 `;
 }
 
-function readingPrompt({ title, subject, module, objective, topics }) {
+function readingPrompt({ title, subject, module, objective, topics, grounded = false }) {
   return `
 Você é um professor especialista escrevendo material didático em português brasileiro.
 
@@ -841,10 +914,14 @@ Regras:
 - Não repita o título do módulo nem o objetivo no início — comece direto no conteúdo.
 - Sem encher linguiça. Cada frase traz informação nova.
 
-Devolva SOMENTE este JSON:
+${grounded ? `Pesquise na web (Google Search) para confirmar datas, números, nomes e definições antes de escrever, e baseie o texto no que encontrar.
+- Não escreva lista de fontes, links, URLs nem "Referências" no texto: o sistema mostra as fontes consultadas separadamente.
+- Não cite autores, livros ou instituições que você não tenha encontrado na pesquisa.
+
+Devolva SOMENTE o texto da leitura (sem JSON, sem markdown), com parágrafos e subtítulos separados por uma linha em branco.` : `Devolva SOMENTE este JSON:
 {
   "content": "Texto da leitura com parágrafos separados por linha em branco."
-}`;
+}`}`;
 }
 
 function quizPrompt({ title, subject, module, objective }) {
@@ -1284,13 +1361,22 @@ app.get("/api/reading", aiLimiter, asyncRoute(async (req, res) => {
   const topics = String(rawTopics || "").split("|").map((t) => clampStr(t, 120)).filter(Boolean).slice(0, 8);
   const p = { title, subject, module, objective, topics: topics.join("|") };
 
+  /* Com fontes (Grounding com Google Search) quando disponível; se a ferramenta for recusada por todos os modelos,
+     cai para a leitura sem fontes e diz isso ao app (sources.status = "unavailable"). Nunca inventa referências. */
+  const groundedSpec = {
+    prompt: readingPrompt({ title, subject, module, objective, topics, grounded: true }),
+    normalize: (raw, grounding) => { const r = normalizeReading(raw); return { ...r, sources: buildSources(grounding, r.content) }; },
+    maxTokens: 3000, temperature: 0.5, timeoutMs: 25000, grounded: true,
+  };
+  const plainSpec = {
+    prompt: readingPrompt({ title, subject, module, objective, topics }),
+    normalize: (raw) => ({ ...normalizeReading(raw), sources: { status: "unavailable", items: [], queries: [] } }),
+    maxTokens: 3000, temperature: 0.5, timeoutMs: 20000,
+  };
   await handleAIRequest({
-    label: "reading", params: p, req, res,
-    spec: {
-      prompt: readingPrompt({ title, subject, module, objective, topics }),
-      normalize: normalizeReading,
-      maxTokens: 3000, temperature: 0.5, timeoutMs: 20000,
-    },
+    label: "reading", params: { ...p, v: genAIGrounded ? "fontes-1" : "sem-fontes" }, req, res,
+    spec: genAIGrounded ? groundedSpec : plainSpec,
+    fallbackSpec: genAIGrounded ? plainSpec : null,
   });
 }));
 
