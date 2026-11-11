@@ -191,6 +191,9 @@
   /* Acessibilidade: foco visível em qualquer controle (inclusive os que removem o outline padrão) */
   :focus-visible{ outline:2px solid var(--focus) !important; outline-offset:2px; }
   input:focus-visible, textarea:focus-visible{ outline-offset:0; }
+  /* Link dentro de uma frase (ex.: "Modo visitante · Entrar com Google"): área de toque de 44 px sem alterar a linha. */
+  .sf-link-btn{ background:none; border:0; padding:12px 0; margin:-12px 0; font:inherit; font-weight:600; color:var(--blue-300); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+  @media (hover:hover){ .sf-link-btn:hover{ color:var(--text-primary); } .sf-weekstrip:hover .sf-ed-stat{ color:var(--blue-300); } }
   .sr-only-live{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   .sf-skip{ position:absolute; left:12px; top:-60px; z-index:100; background:var(--blue-500); color:#fff; padding:12px 16px; min-height:44px; line-height:20px; display:inline-flex; align-items:center; border-radius:12px; font-size:15px; font-weight:600; text-decoration:none; }
   .sf-skip:focus{ top:12px; }
@@ -832,10 +835,221 @@ const CATALOG = [...SEED_CONTENTS, ...DISCOVERABLE_SUBJECTS].map(item => ({
   topics: (item.topics || []).map(t => ({t: t.t, done: false})),
 }));
 
-function loadLS(key, fallback){
-  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }catch(e){ return fallback; }
+/* ============================================================
+   TRILHAS DE EXEMPLO (modo visitante)
+   Conteúdo escrito e revisado com antecedência: abre na hora, sem servidor e sem IA.
+   O progresso nelas começa zerado e é real (é o que o visitante fizer).
+   Vídeos: preencher DEMO_VIDEOS com o vídeo escolhido para cada trilha, ex.: {id:'<ID do YouTube>', title:'…', channel:'…'}
+   (null = busca normal pelo servidor).
+   ============================================================ */
+const DEMO_VIDEOS = {
+  'demo-funcoes': null,
+  'demo-revolucao-francesa': null,
+  'demo-present-perfect': null,
+};
+const DEMO_CONTENTS = [
+  {id:'demo-funcoes', title:'Funções do 1º grau', subjectId:'matematica', estMinutes:25,
+    desc:'O que é uma função afim, como ler seus coeficientes, desenhar o gráfico e encontrar a raiz, com exemplos do dia a dia.',
+    topics:[
+      {t:'O que é uma função do 1º grau', type:'video', objective:'Reconhecer uma função afim e o papel de cada coeficiente.'},
+      {t:'Coeficientes, gráfico e raiz', type:'reading', objective:'Interpretar os coeficientes, traçar o gráfico e calcular a raiz.'},
+      {t:'Prática: funções do 1º grau', type:'flashcards', objective:'Fixar os conceitos principais.'},
+      {t:'Avaliação: funções do 1º grau', type:'quiz', objective:'Aplicar os conceitos em 10 questões.'},
+    ]},
+  {id:'demo-revolucao-francesa', title:'Revolução Francesa', subjectId:'historia', estMinutes:25,
+    desc:'Do Antigo Regime ao 18 Brumário: causas, fases e os principais acontecimentos da Revolução Francesa (1789–1799).',
+    topics:[
+      {t:'Por que a Revolução começou', type:'video', objective:'Entender a crise do Antigo Regime em 1789.'},
+      {t:'Da Bastilha ao 18 Brumário', type:'reading', objective:'Ordenar as fases da Revolução e seus marcos.'},
+      {t:'Prática: Revolução Francesa', type:'flashcards', objective:'Fixar datas, grupos e conceitos.'},
+      {t:'Avaliação: Revolução Francesa', type:'quiz', objective:'Aplicar o que foi estudado em 10 questões.'},
+    ]},
+  {id:'demo-present-perfect', title:'Present Perfect', subjectId:'ingles', estMinutes:20,
+    desc:'Como formar e quando usar o Present Perfect em inglês, com as palavras que costumam acompanhá-lo e o erro mais comum.',
+    topics:[
+      {t:'Present Perfect em 10 minutos', type:'video', objective:'Ouvir a estrutura e os usos em contexto.'},
+      {t:'Como formar e quando usar', type:'reading', objective:'Formar frases afirmativas, negativas e perguntas e saber quando usá-las.'},
+      {t:'Prática: Present Perfect', type:'flashcards', objective:'Fixar estrutura, particípios e palavras-chave.'},
+      {t:'Avaliação: Present Perfect', type:'quiz', objective:'Aplicar o que foi estudado em 10 questões.'},
+    ]},
+];
+function isDemoContent(c){ return !!(c && c.demo); }
+function createDemoContent(d){
+  const vid = DEMO_VIDEOS[d.id];
+  return {
+    id: d.id, title: d.title, subjectId: d.subjectId, unitLabel: '', estMinutes: d.estMinutes, progressPct: 0,
+    desc: d.desc, keywords: [], demo: true, journey: null, journeyStatus: 'ready', addedAt: Date.now(),
+    topics: d.topics.map(t => ({t: t.t, type: t.type, done: false, objective: t.objective, subtopics: [],
+      ...(t.type === 'video' && vid && isValidYouTubeId(vid.id) ? {video: vid} : {})})),
+  };
 }
-function saveLS(key, value){ try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){} }
+/* A alternativa correta muda de posição de forma fixa (pelo texto da pergunta), para não ficar sempre em primeiro. */
+const Q = (q, right, ...wrong)=>{
+  const opts = wrong.map(l => ({l, correct:false}));
+  const pos = [...q].reduce((h, ch)=> (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % (opts.length + 1);
+  opts.splice(pos, 0, {l:right, correct:true});
+  return {q, options: opts};
+};
+const DEMO_LIBRARY = {
+  'demo-funcoes|Coeficientes, gráfico e raiz': {reading:
+`Função afim
+
+Uma função do 1º grau, ou função afim, tem a forma f(x) = ax + b, em que a e b são números reais e a ≠ 0. O número a é o coeficiente angular e b é o coeficiente linear.
+
+O que cada coeficiente faz
+
+O coeficiente a indica quanto f(x) muda quando x aumenta 1 unidade. Se a > 0, a função é crescente; se a < 0, é decrescente. Em f(x) = 3x + 2, cada aumento de 1 em x soma 3 ao resultado.
+
+O coeficiente b é o valor da função quando x = 0. No gráfico, é o ponto em que a reta corta o eixo y. Em f(x) = 3x + 2, a reta passa por (0, 2).
+
+O gráfico
+
+O gráfico de uma função afim é sempre uma reta inclinada. Como dois pontos determinam uma reta, basta calcular f(x) para dois valores de x e ligar os pontos.
+
+A raiz da função
+
+A raiz, ou zero, é o valor de x que faz f(x) = 0. Para encontrá-la, resolva ax + b = 0, o que dá x = −b/a. Em f(x) = 2x − 6, a raiz é x = 3: é onde a reta corta o eixo x.
+
+Um exemplo do dia a dia
+
+Uma corrida de táxi cobra R$ 5,00 de bandeirada mais R$ 2,50 por quilômetro. O preço é P(x) = 2,5x + 5, em que x é a distância em km. Uma corrida de 8 km custa P(8) = 2,5 · 8 + 5 = 25 reais.`},
+  'demo-funcoes|Prática: funções do 1º grau': {cards:[
+    {front:'Qual é a forma geral da função do 1º grau?', back:'f(x) = ax + b, com a ≠ 0.'},
+    {front:'O que é o coeficiente a?', back:'O coeficiente angular: quanto f(x) muda quando x aumenta 1. Define a inclinação da reta.'},
+    {front:'O que é o coeficiente b?', back:'O coeficiente linear: o valor de f(0), onde a reta corta o eixo y.'},
+    {front:'Quando a função afim é crescente?', back:'Quando a > 0.'},
+    {front:'f(x) = −2x + 1 é crescente ou decrescente?', back:'Decrescente, porque a = −2 é negativo.'},
+    {front:'Como calcular a raiz de f(x) = ax + b?', back:'Resolvendo ax + b = 0, o que dá x = −b/a.'},
+    {front:'Qual é a raiz de f(x) = 4x − 8?', back:'x = 2.'},
+    {front:'Qual é o formato do gráfico de uma função afim?', back:'Uma reta inclinada (não horizontal, porque a ≠ 0).'},
+  ]},
+  'demo-funcoes|Avaliação: funções do 1º grau': {quiz:[
+    Q('Qual destas é uma função do 1º grau?', 'f(x) = 3x − 4', 'f(x) = x² + 1', 'f(x) = 5/x', 'f(x) = 7'),
+    Q('Em f(x) = −5x + 2, qual é o coeficiente angular?', '−5', '2', '5', '−2'),
+    Q('Em f(x) = 4x + 3, em que ponto a reta corta o eixo y?', '(0, 3)', '(3, 0)', '(0, 4)', '(−3/4, 0)'),
+    Q('Qual é a raiz de f(x) = 2x − 10?', '5', '−5', '10', '2'),
+    Q('A função f(x) = −3x + 6 é:', 'Decrescente', 'Crescente', 'Constante', 'Crescente apenas para x > 2'),
+    Q('Se f(x) = 3x − 1, quanto vale f(4)?', '11', '13', '12', '7'),
+    Q('Um táxi cobra R$ 4,00 fixos mais R$ 2,00 por km. Quanto custa uma corrida de 10 km?', 'R$ 24,00', 'R$ 20,00', 'R$ 40,00', 'R$ 42,00'),
+    Q('Uma reta passa pelos pontos (0, 1) e (2, 5). Qual é a função?', 'f(x) = 2x + 1', 'f(x) = x + 1', 'f(x) = 3x + 1', 'f(x) = 2x + 5'),
+    Q('De forma geral, a raiz de f(x) = ax + b é:', 'x = −b/a', 'x = b/a', 'x = −a/b', 'x = a · b'),
+    Q('Em f(x) = 0,5x − 2, quando x aumenta 2 unidades, f(x):', 'Aumenta 1', 'Aumenta 2', 'Aumenta 0,5', 'Diminui 2'),
+  ]},
+
+  'demo-revolucao-francesa|Da Bastilha ao 18 Brumário': {reading:
+`A França antes de 1789
+
+A sociedade do Antigo Regime era dividida em três estados. O clero formava o Primeiro Estado e a nobreza, o Segundo; ambos tinham privilégios, como isenções de impostos. O Terceiro Estado reunia a maior parte da população, de camponeses a burgueses, e sustentava o reino com tributos.
+
+No fim da década de 1780, a monarquia de Luís XVI enfrentava uma grave crise financeira, agravada pelos gastos com guerras, entre elas o apoio à independência dos Estados Unidos. Más colheitas encareceram o pão. As ideias iluministas, que criticavam o absolutismo e os privilégios, circulavam entre a burguesia.
+
+Dos Estados Gerais à Bastilha
+
+Em maio de 1789, o rei convocou os Estados Gerais para aprovar novos impostos. O Terceiro Estado exigiu o voto por cabeça, e não por estado, e em junho se declarou Assembleia Nacional, comprometendo-se a dar uma constituição à França.
+
+Em 14 de julho de 1789, a população de Paris tomou a Bastilha, prisão e símbolo do poder real. Em agosto, a Assembleia aboliu os privilégios feudais e aprovou a Declaração dos Direitos do Homem e do Cidadão.
+
+Da monarquia constitucional à República
+
+A Constituição de 1791 manteve o rei, mas limitou seus poderes. A tentativa de fuga de Luís XVI, em 1791, e a guerra contra monarquias absolutistas radicalizaram o processo. Em 1792 a monarquia foi abolida e a República foi proclamada; o rei foi executado em janeiro de 1793.
+
+O Terror e o fim da Revolução
+
+Sob a liderança jacobina de Robespierre, entre 1793 e 1794, o Comitê de Salvação Pública perseguiu opositores, e milhares de pessoas foram executadas: é o período do Terror. Robespierre foi derrubado e executado em julho de 1794.
+
+Seguiu-se o Diretório, governo dominado pela alta burguesia, até o golpe do 18 Brumário, em 1799, que levou Napoleão Bonaparte ao poder e encerrou a Revolução.`},
+  'demo-revolucao-francesa|Prática: Revolução Francesa': {cards:[
+    {front:'Quem formava o Primeiro, o Segundo e o Terceiro Estado?', back:'Clero, nobreza e o restante da população: camponeses, trabalhadores urbanos e burguesia.'},
+    {front:'Por que Luís XVI convocou os Estados Gerais em 1789?', back:'Para tentar aprovar novos impostos diante da crise financeira do reino.'},
+    {front:'O que aconteceu em 14 de julho de 1789?', back:'A tomada da Bastilha, prisão que simbolizava o poder real.'},
+    {front:'Que documento a Assembleia aprovou em agosto de 1789?', back:'A Declaração dos Direitos do Homem e do Cidadão.'},
+    {front:'Que regime a Constituição de 1791 criou?', back:'Uma monarquia constitucional: o rei continuava, mas com poderes limitados.'},
+    {front:'O que foi o Terror?', back:'O período de 1793 a 1794, sob os jacobinos e Robespierre, de perseguição e execução de opositores.'},
+    {front:'O que foi o Diretório?', back:'O governo de 1795 a 1799, dominado pela alta burguesia, depois da queda dos jacobinos.'},
+    {front:'O que foi o 18 Brumário?', back:'O golpe de 1799 que levou Napoleão Bonaparte ao poder e encerrou a Revolução.'},
+  ]},
+  'demo-revolucao-francesa|Avaliação: Revolução Francesa': {quiz:[
+    Q('Quem formava o Terceiro Estado?', 'Camponeses, trabalhadores urbanos e burguesia', 'O clero', 'A nobreza', 'A família real'),
+    Q('Por que os Estados Gerais foram convocados em 1789?', 'Para aprovar novos impostos diante da crise financeira', 'Para declarar guerra à Inglaterra', 'Para coroar Luís XVI', 'Para abolir a monarquia'),
+    Q('Quando ocorreu a tomada da Bastilha?', '14 de julho de 1789', '4 de agosto de 1789', '21 de janeiro de 1793', 'Novembro de 1799'),
+    Q('O que o Terceiro Estado exigia nos Estados Gerais?', 'Voto por cabeça, e não por estado', 'A volta do absolutismo', 'Mais privilégios para a nobreza', 'O fim dos Estados Gerais'),
+    Q('A Declaração dos Direitos do Homem e do Cidadão afirmava que:', 'Os homens nascem livres e iguais em direitos', 'O poder dos reis vem de Deus', 'O clero não paga impostos', 'A propriedade privada deve acabar'),
+    Q('A Constituição de 1791 estabeleceu:', 'Uma monarquia constitucional', 'Uma república', 'O absolutismo', 'Um governo jacobino'),
+    Q('Que líder é associado ao período do Terror?', 'Robespierre', 'Napoleão Bonaparte', 'Luís XVI', 'Maria Antonieta'),
+    Q('O que foi o Diretório?', 'Governo dominado pela alta burguesia entre 1795 e 1799', 'O conselho do rei antes de 1789', 'O tribunal que julgou Robespierre', 'O parlamento inglês da época'),
+    Q('Qual golpe levou Napoleão ao poder em 1799?', '18 Brumário', 'Tomada da Bastilha', 'Fuga de Varennes', 'Juramento do Jogo da Pela'),
+    Q('Qual movimento de ideias influenciou a Revolução?', 'Iluminismo', 'Renascimento', 'Escolástica', 'Romantismo'),
+  ]},
+
+  'demo-present-perfect|Como formar e quando usar': {reading:
+`Como se forma
+
+O Present Perfect é formado por have ou has mais o particípio passado do verbo. Use has com he, she e it, e have com I, you, we e they: She has finished. They have arrived.
+
+Nos verbos regulares, o particípio termina em -ed, como worked e played. Os irregulares têm formas próprias, que precisam ser memorizadas: go → gone, see → seen, eat → eaten, be → been.
+
+Negativa e pergunta
+
+Na negativa, acrescente not: I have not (haven't) seen that movie. Na pergunta, have ou has vem antes do sujeito: Have you ever been to Salvador?
+
+Quando usar
+
+O Present Perfect liga o passado ao presente. Use para experiências de vida sem momento definido (I have visited Chile), para ações que começaram no passado e continuam (She has lived here for five years) e para ações recentes com efeito agora (I have lost my keys: ainda estou sem elas).
+
+Palavras que costumam aparecer
+
+Ever e never falam de experiências. Already indica que algo já aconteceu, e yet aparece em perguntas e negativas: I have already eaten. Have you finished yet? For indica duração (for two years) e since indica o ponto de início (since 2020).
+
+O erro mais comum
+
+Com um momento já terminado no passado, use o Simple Past, e não o Present Perfect. Diga I saw him yesterday, e não I have seen him yesterday. Palavras como yesterday, last week e in 2019 pedem o Simple Past.`},
+  'demo-present-perfect|Prática: Present Perfect': {cards:[
+    {front:'Qual é a estrutura do Present Perfect?', back:'have/has + particípio passado. Ex.: She has worked.'},
+    {front:'Com quais pronomes se usa has?', back:'He, she e it.'},
+    {front:'Particípio de go, see e eat', back:'gone, seen, eaten.'},
+    {front:'for ou since: "___ 2020"', back:'since, porque indica o ponto de início.'},
+    {front:'for ou since: "___ three years"', back:'for, porque indica a duração.'},
+    {front:'Diferença entre already e yet', back:'already: algo que já aconteceu (afirmativa). yet: em perguntas e negativas (já? / ainda não).'},
+    {front:'Corrija: "I have seen him yesterday."', back:'"I saw him yesterday." Com um momento terminado, use o Simple Past.'},
+    {front:'Como perguntar se alguém já esteve em Paris?', back:'Have you ever been to Paris?'},
+  ]},
+  'demo-present-perfect|Avaliação: Present Perfect': {quiz:[
+    Q('Complete: She ___ finished her homework.', 'has', 'have', 'is', 'did'),
+    Q('Qual é o particípio passado de "write"?', 'written', 'wrote', 'writed', 'writing'),
+    Q('Qual frase está correta?', 'I have lived here since 2018.', 'I have lived here since three years.', 'I live here since 2018.', 'I lived here since 2018.'),
+    Q('Complete: They have worked here ___ ten years.', 'for', 'since', 'ago', 'yet'),
+    Q('Complete: I ___ him last week.', 'saw', 'have seen', 'has seen', 'have saw'),
+    Q('Qual pergunta está correta?', 'Have you ever been to Japan?', 'Did you ever been to Japan?', 'Has you ever been to Japan?', 'Have you ever went to Japan?'),
+    Q('Complete: He ___ called me yet.', "hasn't", "haven't", "didn't", "isn't"),
+    Q('"I have lost my keys" indica que:', 'Perdi as chaves e ainda estou sem elas', 'Perdi as chaves há anos e já achei', 'Vou perder as chaves', 'Costumo perder as chaves'),
+    Q('Complete: I have ___ eaten, thanks.', 'already', 'yet', 'since', 'ago'),
+    Q('Qual expressão NÃO combina com o Present Perfect?', 'yesterday', 'ever', 'never', 'already'),
+  ]},
+};
+function demoModule(contentId, moduleTitle){ return DEMO_LIBRARY[`${contentId}|${moduleTitle}`] || null; }
+
+
+/* ---------- Espaços de dados ----------
+   Cada pessoa tem o seu espaço neste navegador: 'v' (visitante) ou 'u:<id da conta Google>'.
+   As chaves de dados (sf_contents, sf_live_sessions...) são gravadas como sf:<espaço>:<nome>.
+   Tema, perfil de login e controles de versão continuam globais. */
+const GLOBAL_KEYS = new Set(['sf_theme','sf_auth_user','sf_data_version','sf_space','sf_legacy_owner','sf_drawers_open']);
+let DATA_SPACE = null;
+function lsKey(key, space){
+  const sp = space === undefined ? DATA_SPACE : space;
+  if(!sp || GLOBAL_KEYS.has(key) || !String(key).startsWith('sf_')) return key;
+  return `sf:${sp}:${key.slice(3)}`;
+}
+function loadLS(key, fallback, space){
+  try{ const raw = localStorage.getItem(lsKey(key, space)); return raw ? JSON.parse(raw) : fallback; }catch(e){ return fallback; }
+}
+function saveLS(key, value, space){ try{ localStorage.setItem(lsKey(key, space), JSON.stringify(value)); }catch(e){} }
+function removeLS(key, space){ try{ localStorage.removeItem(lsKey(key, space)); }catch(e){} }
+function spaceKeys(space){
+  const prefix = `sf:${space}:`, out = [];
+  try{ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.startsWith(prefix)) out.push('sf_' + k.slice(prefix.length)); } }catch(e){}
+  return out;
+}
 
 const DATA_VERSION = 2;
 (function migrateStorage(){
@@ -1107,6 +1321,95 @@ const watchRepo = {
   get(key){ const e = this.all()[key]; return e ? {...e, segs: e.segs.map(s => [...s])} : null; },
   put(key, entry){ const e = cleanWatchEntry(entry); if(!e) return; this.all()[key] = e; saveLS(WATCH_STORAGE_KEY, this.all()); },
 };
+
+/* Troca o espaço ativo (antes de montar o estado do app). */
+function setDataSpace(space){
+  if(DATA_SPACE === space) return;
+  DATA_SPACE = space;
+  watchRepo._cache = null;
+}
+/* Dados gravados antes dos espaços existirem (chaves sf_* globais) pertencem a uma conta Google:
+   vão para a primeira conta que entrar depois da atualização. Nunca para o visitante. */
+const LEGACY_DATA_KEYS = ['sf_contents','sf_live_sessions','sf_active_session','sf_last_watched_video','sf_last_content','sf_tasks','sf_planner',
+  'sf_timer_pos','sf_learning_progress','sf_subjects','sf_settings','sf_mascot','sf_module_notes','sf_watch_progress','sf_last_subject','sf_last_video','sf_video_progress'];
+function claimLegacyData(space){
+  try{
+    if(!space || !space.startsWith('u:') || localStorage.getItem('sf_legacy_owner')) return;
+    LEGACY_DATA_KEYS.forEach(k=>{
+      const raw = localStorage.getItem(k);
+      if(raw == null) return;
+      const target = lsKey(k, space);
+      if(localStorage.getItem(target) == null) localStorage.setItem(target, raw);
+      localStorage.removeItem(k);
+    });
+    localStorage.setItem('sf_legacy_owner', space);
+  }catch(e){}
+}
+function clearSpace(space){ spaceKeys(space).forEach(k => removeLS(k, space)); }
+
+/* Visitante → conta: o que o visitante FEZ vai para a conta, somado ao que ela já tem (nunca substitui).
+   Conteúdo de exemplo não é dado do usuário: as trilhas de exemplo vivem no código; aqui só viaja o progresso nelas. */
+function mergeVisitorInto(space){
+  const V = 'v';
+  const arr = (k, sp)=>{ const x = loadLS(k, [], sp); return Array.isArray(x) ? x : []; };
+  const obj = (k, sp)=>{ const x = loadLS(k, {}, sp); return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; };
+  const byId = (a, b)=>{ const seen = new Set(a.map(x => x && x.id)); return [...a, ...b.filter(x => x && !seen.has(x.id))]; };
+
+  const vSessions = arr('sf_live_sessions', V);
+  /* trilhas de exemplo só viajam se o visitante mexeu nelas */
+  const vLast = loadLS('sf_last_content', null, V);
+  const vContents = arr('sf_contents', V).filter(c => c && (!c.demo || c.id === vLast
+    || (c.topics || []).some(t => t && t.done) || vSessions.some(s => s.contentId === c.id)));
+  const modulesDone = vContents.reduce((n, c)=> n + ((c && c.topics) || []).filter(t => t && t.done).length, 0);
+  const minutes = vSessions.reduce((n, s)=> n + (s.durationMin || 0), 0);
+  if(!spaceKeys(V).length) return null;
+
+  /* conteúdos: mesmo id → módulos concluídos somam (OU); id novo → entra como está */
+  const uContents = arr('sf_contents', space);
+  const merged = uContents.map(c=>{
+    const v = vContents.find(x => x && x.id === c.id);
+    if(!v) return c;
+    const topics = (c.topics || []).map((t, i)=> (v.topics && v.topics[i] && v.topics[i].done && v.topics[i].t === t.t) ? {...t, done:true} : t);
+    return {...c, topics, progressPct: topicsProgressPct(topics)};
+  });
+  vContents.forEach(v=>{ if(v && !merged.some(c => c.id === v.id)) merged.push(v); });
+  saveLS('sf_contents', merged, space);
+
+  saveLS('sf_live_sessions', byId(arr('sf_live_sessions', space), vSessions), space);
+  saveLS('sf_tasks', byId(arr('sf_tasks', space), arr('sf_tasks', V)), space);
+  saveLS('sf_planner', byId(arr('sf_planner', space), arr('sf_planner', V)), space);
+
+  /* avaliações: por conteúdo e módulo, fica o melhor resultado e a soma das tentativas */
+  const lp = obj('sf_learning_progress', space), vlp = obj('sf_learning_progress', V);
+  Object.keys(vlp).forEach(cid=>{
+    const a = lp[cid] || {}, b = vlp[cid] || {};
+    const out = {...a};
+    Object.keys(b).forEach(ti=>{
+      const x = a[ti], y = b[ti];
+      if(!x){ out[ti] = y; return; }
+      out[ti] = {...x, attempts:(x.attempts||0) + (y.attempts||0),
+        bestScore: Math.max(x.bestScore ?? 0, y.bestScore ?? 0), passed: !!(x.passed || y.passed),
+        lastScore: (y.lastAt||0) > (x.lastAt||0) ? y.lastScore : x.lastScore, lastAt: Math.max(x.lastAt||0, y.lastAt||0)};
+    });
+    lp[cid] = out;
+  });
+  saveLS('sf_learning_progress', lp, space);
+
+  /* anotações e tempo assistido: completa o que a conta não tem */
+  ['sf_module_notes', WATCH_STORAGE_KEY].forEach(k=>{
+    const u = obj(k, space), v = obj(k, V);
+    Object.keys(v).forEach(x=>{ if(!(x in u) || (k === 'sf_module_notes' && !String(u[x] || '').trim())) u[x] = v[x]; });
+    saveLS(k, u, space);
+  });
+
+  /* a atividade mais recente é a do visitante: a home retoma de onde ele parou */
+  ['sf_last_content','sf_last_watched_video'].forEach(k=>{ const v = loadLS(k, null, V); if(v != null) saveLS(k, v, space); });
+  const vActive = loadLS('sf_active_session', null, V);
+  if(vActive && !loadLS('sf_active_session', null, space)) saveLS('sf_active_session', vActive, space);
+
+  clearSpace(V);
+  return {modulesDone, minutes};
+}
 /* Um módulo de videoaula pode ser concluído quando o vídeo escolhido para ele foi assistido em pelo menos 75%. */
 function videoTopicWatch(content, topicIndex){
   const topic = content && content.topics ? content.topics[topicIndex] : null;
@@ -1234,6 +1537,7 @@ const GEMINI_PROXY_CONFIG = {
 };
 
 async function fetchQuiz({ contentId, title, subject, moduleTitle, learningObjective }){
+  { const d = demoModule(contentId, moduleTitle); if(d && d.quiz) return d.quiz; }
   if(!GEMINI_PROXY_CONFIG.enabled || !GEMINI_PROXY_CONFIG.quizUrl) return null;
   try{
     const data = await apiRequest(GEMINI_PROXY_CONFIG.quizUrl, { timeoutMs: API_TIMEOUT_MS.ai, params: {
@@ -1261,6 +1565,7 @@ async function fetchQuiz({ contentId, title, subject, moduleTitle, learningObjec
 }
 
 async function fetchFlashcards({ contentId, title, subject, moduleTitle }){
+  { const d = demoModule(contentId, moduleTitle); if(d && d.cards) return d.cards; }
   if(!GEMINI_PROXY_CONFIG.enabled || !GEMINI_PROXY_CONFIG.flashcardsUrl) return null;
   try{
     const data = await apiRequest(GEMINI_PROXY_CONFIG.flashcardsUrl, { timeoutMs: API_TIMEOUT_MS.ai, params: {
@@ -1278,6 +1583,7 @@ async function fetchFlashcards({ contentId, title, subject, moduleTitle }){
 }
 
 async function fetchReading({ contentId, title, subject, moduleTitle, learningObjective, topics }){
+  { const d = demoModule(contentId, moduleTitle); if(d && d.reading) return { text: d.reading, sources: null }; }
   if(!GEMINI_PROXY_CONFIG.enabled || !GEMINI_PROXY_CONFIG.readingUrl) return null;
   try{
     const data = await apiRequest(GEMINI_PROXY_CONFIG.readingUrl, { timeoutMs: API_TIMEOUT_MS.ai, params: {
@@ -1299,24 +1605,101 @@ async function fetchReading({ contentId, title, subject, moduleTitle, learningOb
 const AppCtx = createContext(null);
 function useApp(){ return useContext(AppCtx); }
 
-function AppProvider({children}){
-  /* ---------- AUTENTICAÇÃO ---------- */
-  const [authUser, setAuthUser] = useState(() => {
-    const stored = loadLS(AUTH_STORAGE_KEY, null);
-    if(stored && stored.exp && stored.exp * 1000 > Date.now()){
-      if('credential' in stored){
-        // versões anteriores guardavam o token do Google; ele não é usado por nenhum serviço, então deixa de ser persistido
-        const {credential, ...profile} = stored;
-        saveLS(AUTH_STORAGE_KEY, profile);
-        return profile;
-      }
-      return stored;
+/* ============================================================
+   IDENTIDADE — conta Google ou visitante
+   Fica fora do AppProvider: trocar de pessoa troca o espaço de dados e remonta o app inteiro com o estado certo.
+   ============================================================ */
+const IdentityCtx = createContext(null);
+function useIdentity(){ return useContext(IdentityCtx); }
+const VISITOR_TTL_DAYS = 30;
+function loadStoredAuth(){
+  const stored = loadLS(AUTH_STORAGE_KEY, null);
+  if(stored && stored.exp && stored.exp * 1000 > Date.now()){
+    if('credential' in stored){
+      // versões anteriores guardavam o token do Google; ele não é usado por nenhum serviço, então deixa de ser persistido
+      const {credential, ...profile} = stored;
+      saveLS(AUTH_STORAGE_KEY, profile);
+      return profile;
     }
-    try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
-    return null;
+    return stored;
+  }
+  removeLS(AUTH_STORAGE_KEY);
+  return null;
+}
+function IdentityProvider({children}){
+  const [authUser, setAuthUser] = useState(()=>{
+    const a = loadStoredAuth();
+    if(a) claimLegacyData('u:' + a.id);
+    /* dados de visitante sem uso há mais de 30 dias são descartados */
+    const seen = Number(loadLS('sf_last_seen', 0, 'v')) || 0;
+    if(seen && Date.now() - seen > VISITOR_TTL_DAYS * 86400000) clearSpace('v');
+    return a;
   });
+  const [visitor, setVisitor] = useState(()=>{ try{ return localStorage.getItem('sf_space') === 'v'; }catch(e){ return false; } });
+  const [notice, setNotice] = useState(null);
+  const resumeRef = useRef(null);     /* tela (e ação) para onde voltar depois de entrar com o Google */
+  const snapshotRef = useRef(null);   /* o AppProvider registra aqui como ler a tela atual */
+
+  const isVisitor = !authUser && visitor;
+  const space = authUser ? 'u:' + authUser.id : (isVisitor ? 'v' : null);
+  setDataSpace(space);   /* síncrono: o estado do app é lido do espaço certo já na montagem */
+
+  const handleAuth = (authData)=>{
+    const profile = {
+      id: authData.id, name: authData.name, email: authData.email, picture: authData.picture,
+      exp: Math.floor(Date.now()/1000) + AUTH_SESSION_DAYS * 86400,
+    };
+    const target = 'u:' + profile.id;
+    claimLegacyData(target);
+    const moved = isVisitor ? mergeVisitorInto(target) : null;
+    if(!isVisitor) resumeRef.current = null;
+    saveLS(AUTH_STORAGE_KEY, profile);
+    try{ localStorage.setItem('sf_space', 'u'); }catch(e){}
+    setNotice(moved && (moved.modulesDone > 0 || moved.minutes > 0) ? {kind:'migrated', ...moved} : null);
+    setVisitor(false);
+    setAuthUser(profile);
+  };
+  const enterVisitor = ()=>{
+    resumeRef.current = null;
+    try{ localStorage.setItem('sf_space', 'v'); }catch(e){}
+    if(!loadLS('sf_seeded', false, 'v')){
+      saveLS('sf_contents', DEMO_CONTENTS.map(createDemoContent), 'v');
+      saveLS('sf_seeded', true, 'v');
+    }
+    setVisitor(true);
+  };
+  /* Volta para o login sem apagar nada (visitante ou conta). */
+  const signOut = ()=>{
+    try{ if(window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect(); }catch(e){}
+    removeLS(AUTH_STORAGE_KEY);
+    try{ localStorage.removeItem('sf_space'); }catch(e){}
+    resumeRef.current = null;
+    setNotice(null);
+    setAuthUser(null);
+    setVisitor(false);
+  };
+  const clearVisitorData = ()=>{ clearSpace('v'); signOut(); };
+  /* Prepara a volta: ao entrar com o Google a partir de uma tela, o app reabre nela (e faz a ação pedida). */
+  const prepareResume = (action)=>{
+    const snap = snapshotRef.current ? snapshotRef.current() : null;
+    resumeRef.current = snap ? {...snap, action: action || null} : (action ? {action} : null);
+  };
+  const cancelResume = ()=>{ resumeRef.current = null; };
+  const takeResume = ()=>{ const r = resumeRef.current; resumeRef.current = null; return r; };
+
+  const value = {authUser, isVisitor, space, handleAuth, enterVisitor, signOut, clearVisitorData,
+    prepareResume, cancelResume, takeResume, snapshotRef, notice, dismissNotice: ()=> setNotice(null)};
+  return <IdentityCtx.Provider value={value}>{children}</IdentityCtx.Provider>;
+}
+
+function AppProvider({children}){
+  const identity = useIdentity();
+  const {authUser, isVisitor} = identity;
+  const resume = useMemo(()=> identity.takeResume(), []);
+  useEffect(()=>{ if(isVisitor) saveLS('sf_last_seen', Date.now()); }, [isVisitor]);
 
   const user = useMemo(() => {
+    if(isVisitor) return {id:'visitante', name:'Visitante', email:'', initials:'', picture:'', visitor:true};
     if(!authUser) return null;
     const name = authUser.name || (authUser.email || '').split('@')[0] || 'Usuário';
     const initials = name.split(/\s+/).map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'U';
@@ -1327,37 +1710,18 @@ function AppProvider({children}){
       initials,
       picture: authUser.picture || '',
     };
-  }, [authUser]);
+  }, [authUser, isVisitor]);
 
-  const handleAuth = (authData) => {
-    const profile = {
-      id: authData.id, name: authData.name, email: authData.email, picture: authData.picture,
-      exp: Math.floor(Date.now()/1000) + AUTH_SESSION_DAYS * 86400,
-    };
-    saveLS(AUTH_STORAGE_KEY, profile);
-    setAuthUser(profile);
-    setTab('home');
-    resetNav();
-  };
-
-  const signOut = () => {
-    try{ if(window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect(); }catch(e){}
-    try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
-    setAuthUser(null);
-    setTab('home');
-    resetNav();
-    setConfirmEnd(false);
-    setFullScreenFocus(false);
-    setTimerExpanded(false);
-  };
+  const signOut = ()=> identity.signOut();
 
   /* ---------- NAVEGAÇÃO ----------
      `tab` é a raiz; `nav.stack` guarda as telas empilhadas por cima dela, então "Voltar" retorna
      sempre à tela anterior (e não à raiz). */
-  const [tab, setTab] = useState('home');
+  const [tab, setTab] = useState(()=> (resume && resume.tab) || 'home');
   /* Fase 4: cada tela empilhada guarda a posição de rolagem (_y) de quando foi deixada; a raiz (aba) guarda rootY.
      Ao voltar, o AppShell restaura essa posição em vez de ir ao topo. */
-  const [nav, setNav] = useState({stack: [], view: null, rootY: 0});
+  const [nav, setNav] = useState(()=> (resume && resume.nav) || {stack: [], view: null, rootY: 0});
+  identity.snapshotRef.current = ()=> ({tab, nav});
   const view = nav.view;
   const sameView = (a, b)=> !!a && !!b && a.name === b.name && (a.contentId || null) === (b.contentId || null);
   const snapY = ()=> { try{ return window.scrollY || 0; }catch(e){ return 0; } };
@@ -1672,8 +2036,8 @@ function AppProvider({children}){
     /* ao fechar a aba, grava a pausa direto no armazenamento (o efeito do React pode não rodar a tempo) */
     const onHide = ()=>{
       try{
-        const s = JSON.parse(localStorage.getItem('sf_active_session') || 'null');
-        if(s && s.status === 'running') localStorage.setItem('sf_active_session', JSON.stringify({...s, status:'paused', pausedAt:Date.now(), pauseReason:'away'}));
+        const s = loadLS('sf_active_session', null);
+        if(s && s.status === 'running') saveLS('sf_active_session', {...s, status:'paused', pausedAt:Date.now(), pauseReason:'away'});
       }catch(e){}
     };
     document.addEventListener('visibilitychange', onVis);
@@ -1769,19 +2133,48 @@ function AppProvider({children}){
 
   const setFocusMin = (min)=> setSettings(s => ({...s, focusMin: Math.min(120, Math.max(5, Math.round(min / 5) * 5))}));
 
-  const value = {user, authUser, handleAuth, signOut,
+  /* ---------- MODO VISITANTE: o que cria conteúdo pela IA pede conta ----------
+     A navegação nunca é bloqueada: a ação abre uma folha que explica o porquê e oferece entrar com o Google.
+     Ao entrar, o app volta para esta tela e faz a ação pedida. */
+  const [accountAsk, setAccountAsk] = useState(null);
+  const askAccount = (feature, action)=>{ identity.prepareResume(action || null); setAccountAsk({feature}); };
+  const closeAccountAsk = ()=>{ identity.cancelResume(); setAccountAsk(null); };
+  const openCriarConteudoGated = (subjectId)=> isVisitor
+    ? askAccount('criar', {type:'criar-conteudo', subjectId: typeof subjectId === 'string' ? subjectId : null})
+    : openCriarConteudo(subjectId);
+  const addUserSubjectGated = (source)=>{
+    if(isVisitor){ askAccount('adicionar', source && source.id ? {type:'add-catalog', id: source.id} : null); return null; }
+    return addUserSubject(source);
+  };
+  const openSubjectSheetGated = (opts)=> (isVisitor && !(opts && opts.id))
+    ? askAccount('materia', {type:'nova-materia'})
+    : openSubjectSheet(opts);
+  /* Retomada depois do login: a ação que o visitante pediu é feita assim que o app abre na conta. */
+  useEffect(()=>{
+    const a = resume && resume.action;
+    if(!a || isVisitor) return;
+    if(a.type === 'criar-conteudo') openCriarConteudo(a.subjectId);
+    else if(a.type === 'nova-materia') openSubjectSheet({});
+    else if(a.type === 'add-catalog'){
+      const item = CATALOG.find(x => x.id === a.id);
+      if(item){ addUserSubject(item); goToView({name:'detalhe', contentId: item.id}); }
+    }
+  }, []);
+
+  const value = {user, authUser, isVisitor, signOut, accountAsk, askAccount, closeAccountAsk,
+    notice: identity.notice, dismissNotice: identity.dismissNotice,
     contents, setContents, liveSessions, tab, setTab, goTab,
     todayStats, globalStats, streak, studyDates,
     view, setView: replaceView, closeView,
-    openDetalhe, openPreSessao, openMascote, openCalendario, openJornada, openConfiguracoes, openTarefas, openCriarConteudo, openMaterias,
+    openDetalhe, openPreSessao, openMascote, openCalendario, openJornada, openConfiguracoes, openTarefas, openCriarConteudo: openCriarConteudoGated, openMaterias,
     session, elapsedSec, startSession, startPlannerSession, pauseSession, resumeSession,
     timerExpanded, setTimerExpanded, timerPos, setTimerPos, confirmEnd, setConfirmEnd, fullScreenFocus, setFullScreenFocus, confirmEndSession,
     completedSession, dismissCompletedSession, showCompletedSummary, setCompletedSession,
     lastWatchedVideo, openYouTubeVideo, setTopicVideo, noteWatchedVideo, restoreY,
     tasks, toggleTask, addTask, deleteTask,
     planner, savePlannerItem, deletePlannerItem, togglePlannerDone,
-    subjectsStore, saveSubject, subjectSheet, openSubjectSheet, closeSubjectSheet,
-    addUserSubject, isUserSubject, discoverableSubjects: CATALOG,
+    subjectsStore, saveSubject, subjectSheet, openSubjectSheet: openSubjectSheetGated, closeSubjectSheet,
+    addUserSubject: addUserSubjectGated, isUserSubject, discoverableSubjects: CATALOG,
     completeTopic, completeModule, submitModuleQuiz, getModuleProgress, openModule, lastContentId, goToView,
     learningProgress, regenerateJourney,
     settings, setFocusMin};
@@ -1865,6 +2258,10 @@ function trailStates(content, currentIdx){
   return topics.map((t, i) => t && t.done ? 'done' : (i === cur ? 'current' : 'pending'));
 }
 function modulesLabel(content){
+  const base = modulesLabelBase(content);
+  return isDemoContent(content) ? `Exemplo · ${base}` : base;
+}
+function modulesLabelBase(content){
   const {total, completed} = getContentProgress(content);
   if(!total) return content && content.journeyStatus === 'loading' ? 'Montando a trilha…' : 'Trilha não disponível';
   if(completed === 0) return `Novo, ${total} ${total === 1 ? 'módulo' : 'módulos'}`;
@@ -1992,6 +2389,10 @@ function SectionTitle({children, className='', id}){
 function ScreenTitle({children, className=''}){ return <h1 className={`sf-ed-display sf-wide-h text-sf-text ${className}`}>{children}</h1>; }
 function SubTitle({children, className='', id}){ return <h1 id={id} className={`sf-ed-title text-sf-text ${className}`}>{children}</h1>; }
 /* Linha de lista de conteúdo: matéria + nome (SF/Conteúdo/Content) + "x de y módulos" + % opcional */
+/* Etiqueta de conteúdo demonstrativo. */
+function DemoTag(){
+  return <span className="text-[12px] leading-[16px] font-semibold rounded-md px-1.5 py-0.5" style={{background:'var(--bg-elevated)', color:'var(--text-secondary)'}}>Exemplo</span>;
+}
 function ContentRow({c, onClick, showPct=true, trail=false}){
   const {total, completed, pct} = getContentProgress(c);
   return (
@@ -2303,49 +2704,40 @@ function TypedBrand({typed, done, caret}){
   );
 }
 
-function LoginScreen({ onAuth }){
+/* Botão oficial do Google (Google Identity Services). Usado no login, na folha de conta e no Perfil do visitante.
+   O tema do botão acompanha o do app. Se o script do Google não carregar, avisa em `onUnavailable`. */
+function GoogleSignInButton({ onAuth, onUnavailable, onLoading }){
   const btnRef = useRef(null);
   const drawRef = useRef(null);
-  const [status, setStatus] = useState('idle');
-  const [localError, setLocalError] = useState('');
-  const [gisReady, setGisReady] = useState(false);
+  const authRef = useRef(onAuth); authRef.current = onAuth;
   const {resolved} = useTheme();
   const themeRef = useRef(resolved);
   themeRef.current = resolved;
-  const {typed, done, fast, instant, finish} = useBrandSequence();
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if(!GOOGLE_CLIENT_ID) return;
+    if(!GOOGLE_CLIENT_ID){ setError('setup'); return; }
     let cancelled = false;
     let attempts = 0;
     let attachTimer = null;
-
-    /* (re)desenha o botão do Google; o tema do botão acompanha o tema do app */
     const draw = () => {
       if(!btnRef.current || !window.google?.accounts?.id) return;
-      const w = Math.max(200, Math.min(320, Math.floor(btnRef.current.clientWidth || 320)));
+      const w = Math.max(200, Math.min(340, Math.floor(btnRef.current.clientWidth || 320)));
       window.google.accounts.id.renderButton(btnRef.current, {
         theme: themeRef.current === 'light' ? 'outline' : 'filled_black',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-        width: w,
+        size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'left', width: w,
       });
       clearTimeout(attachTimer);
       attachTimer = setTimeout(() => {
         if(cancelled || !btnRef.current) return;
-        const inner = btnRef.current.querySelector('div[role="button"]')
-          || btnRef.current.querySelector('button');
-        if(inner) inner.addEventListener('click', () => setStatus('loading'));
+        const inner = btnRef.current.querySelector('div[role="button"]') || btnRef.current.querySelector('button');
+        if(inner && onLoading) inner.addEventListener('click', () => onLoading());
       }, 100);
     };
     drawRef.current = draw;
-
     const check = setInterval(() => {
       attempts++;
       if(cancelled){ clearInterval(check); return; }
-
       if(window.google?.accounts?.id){
         clearInterval(check);
         try{
@@ -2353,45 +2745,58 @@ function LoginScreen({ onAuth }){
             client_id: GOOGLE_CLIENT_ID,
             callback: (response) => {
               const payload = decodeJwt(response.credential);
-              if(!payload){
-                setStatus('error');
-                setLocalError('Não foi possível ler a credencial do Google.');
-                return;
-              }
-              onAuth({
+              if(!payload){ setError('Não foi possível ler a credencial do Google.'); return; }
+              authRef.current({
                 id: payload.sub,
                 name: payload.name || (payload.email || '').split('@')[0] || 'Usuário',
-                email: payload.email || '',
-                picture: payload.picture || '',
-                credential: response.credential,
+                email: payload.email || '', picture: payload.picture || '',
                 exp: payload.exp || (Math.floor(Date.now()/1000) + 3600),
               });
             },
             auto_select: false,
             cancel_on_tap_outside: true,
           });
-          if(btnRef.current){
-            draw();
-            setGisReady(true);
-          }
-        }catch(e){
-          setLocalError('Falha ao inicializar o Google Sign-In.');
-        }
+          draw();
+        }catch(e){ setError('Falha ao iniciar o login do Google.'); if(onUnavailable) onUnavailable(); }
       } else if(attempts > 50){
         clearInterval(check);
-        setLocalError('Não foi possível carregar o Google Sign-In. Verifique sua conexão.');
+        setError('Não foi possível carregar o login do Google.');
+        if(onUnavailable) onUnavailable();
       }
     }, 100);
-
     return () => { cancelled = true; clearInterval(check); clearTimeout(attachTimer); drawRef.current = null; };
   }, []);
 
-  /* tema trocado com o botão já na tela: redesenha o botão do Google na variante certa (sem recarregar nada) */
   const firstTheme = useRef(true);
   useEffect(()=>{
     if(firstTheme.current){ firstTheme.current = false; return; }
     if(drawRef.current) drawRef.current();
   }, [resolved]);
+
+  if(error === 'setup'){
+    return (
+      <div className="rounded-2xl p-4" style={{background:'var(--warning-tint)', border:'1px solid var(--warning-border)'}}>
+        <p className="text-[12px] text-sf-warning font-semibold">Configuração necessária</p>
+        <p className="text-[11px] text-sf-muted mt-1 leading-relaxed">Defina <code>GOOGLE_CLIENT_ID</code> no início do script com o ID criado no Google Cloud Console.</p>
+      </div>
+    );
+  }
+  if(error){
+    return (
+      <div role="alert" className="rounded-2xl p-4 text-left" style={{background:'var(--bg-elevated)'}}>
+        <p className="text-[15px] leading-[20px] font-semibold text-sf-text m-0">{error}</p>
+        <p className="text-[14px] leading-[20px] text-sf-muted mt-1 mb-0">Pode ser a conexão ou um bloqueador de conteúdo. Tente recarregar a página.</p>
+        <button type="button" onClick={()=>window.location.reload()} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-1 text-[15px] font-semibold">Recarregar página</button>
+      </div>
+    );
+  }
+  return <div ref={btnRef} className="flex justify-center min-h-[44px] w-full" aria-label="Continuar com o Google"/>;
+}
+
+function LoginScreen(){
+  const {handleAuth, enterVisitor} = useIdentity();
+  const [status, setStatus] = useState('idle');
+  const {typed, done, fast, instant} = useBrandSequence();
 
   /* se o popup do Google for fechado sem concluir, o aviso "Conectando..." não fica preso (só visual) */
   useEffect(()=>{
@@ -2400,7 +2805,6 @@ function LoginScreen({ onAuth }){
     return ()=> clearTimeout(t);
   }, [status]);
 
-  const setupRequired = !GOOGLE_CLIENT_ID && !DEV_MODE;
   const devBypass = DEV_MODE && !GOOGLE_CLIENT_ID;
   const on = done ? ' is-on' : '';
 
@@ -2415,61 +2819,97 @@ function LoginScreen({ onAuth }){
 
           <div className={`sf-reveal text-center mt-7${on}`} style={{'--d':'0ms'}}>
             <h2 className="sf-ed-title text-sf-text">Bem-vindo</h2>
-            <p className="text-[14px] leading-[20px] text-sf-muted mt-2 max-w-[300px] mx-auto">Sua trilha de estudo começa aqui.</p>
+            <p className="text-[15px] leading-[20px] text-sf-muted mt-2 max-w-[320px] mx-auto">Organize matérias, siga trilhas de estudo e acompanhe seu foco.</p>
           </div>
 
           <div className={`sf-reveal mt-9 w-full max-w-[340px]${on}`} style={{'--d':'140ms'}}>
-
-            {setupRequired && (
-              <div className="rounded-2xl p-4" style={{background:'var(--warning-tint)', border:'1px solid var(--warning-border)'}}>
-                <p className="text-[12px] text-sf-warning font-semibold">Configuração necessária</p>
-                <p className="text-[11px] text-sf-muted mt-1 leading-relaxed">
-                  Defina <code>GOOGLE_CLIENT_ID</code> no início do script com o ID criado no Google Cloud Console.
+            <div aria-busy={status === 'loading' ? 'true' : undefined}>
+              {devBypass ? (
+                <button type="button" onClick={()=> handleAuth({id:'dev-user', name:'Desenvolvedor', email:'dev@local', picture:'', exp: Math.floor(Date.now()/1000) + 3600})}
+                  className="sf-btn sf-btn-secondary w-full h-12 text-[14px] font-semibold" style={{border:'1px dashed var(--warning-outline)'}}>
+                  Entrar em modo dev (sem autenticação)
+                </button>
+              ) : (
+                <GoogleSignInButton onAuth={handleAuth} onLoading={()=>setStatus('loading')}/>
+              )}
+              {status === 'loading' && (
+                <p role="status" className="text-center text-[13px] text-sf-accent mt-3 flex items-center justify-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full border-2 border-sf-accent border-t-transparent sf-spinner"/>
+                  Conectando...
                 </p>
-              </div>
-            )}
+              )}
+            </div>
 
-            {!setupRequired && (
-              <div className="sf-card rounded-2xl p-5" aria-busy={status === 'loading' ? 'true' : undefined}>
-                {!devBypass && (
-                  <div ref={btnRef} className="flex justify-center min-h-[44px]"/>
-                )}
+            <div className="flex items-center gap-3 my-5" aria-hidden="true">
+              <span className="flex-1 h-px" style={{background:'var(--border)'}}/>
+              <span className="text-[13px] text-sf-faint">ou</span>
+              <span className="flex-1 h-px" style={{background:'var(--border)'}}/>
+            </div>
 
-                {devBypass && (
-                  <button type="button" onClick={()=>{
-                    onAuth({
-                      id:'dev-user', name:'Desenvolvedor', email:'dev@local',
-                      picture:'', credential:'dev',
-                      exp: Math.floor(Date.now()/1000) + 3600,
-                    });
-                  }}
-                    className="sf-btn sf-btn-secondary w-full h-12 text-[14px] font-semibold"
-                    style={{border:'1px dashed var(--warning-outline)'}}>
-                    Entrar em modo dev (sem autenticação)
-                  </button>
-                )}
-
-                {status === 'loading' && (
-                  <p role="status" className="text-center text-[12px] text-sf-accent mt-3 flex items-center justify-center gap-2">
-                    <span className="inline-block w-3 h-3 rounded-full border-2 border-sf-accent border-t-transparent sf-spinner"/>
-                    Conectando...
-                  </p>
-                )}
-              </div>
-            )}
-
-            {localError && (
-              <InlineError title={localError} onRetry={()=>window.location.reload()} retryLabel="Recarregar página"/>
-            )}
-
-            <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-5">
-              Seus conteúdos e seu progresso ficam salvos neste aparelho. Entrar com o Google só identifica você; não sincroniza entre aparelhos.
+            <button type="button" onClick={enterVisitor} className="sf-btn sf-btn-secondary w-full h-12 text-[15px] font-semibold">
+              Experimentar sem conta
+            </button>
+            <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-3">
+              Explore com trilhas de exemplo. Seu progresso fica só neste navegador, e você pode entrar com o Google depois sem perder nada.
             </p>
           </div>
         </main>
 
-        <p className={`sf-reveal text-center text-[11px] font-semibold text-sf-faint pb-8${on}`} style={{'--d':'320ms', letterSpacing:'.28em'}}>STUDY</p>
+        <p className={`sf-reveal text-center text-[13px] leading-[18px] text-sf-faint px-6 pb-8 max-w-[360px] mx-auto${on}`} style={{'--d':'320ms'}}>
+          Com ou sem conta, seus dados ficam salvos neste aparelho. O STUDY não sincroniza entre aparelhos.
+        </p>
       </div>
+    </div>
+  );
+}
+
+/* Folha "precisa de conta": o quê, por quê e como continuar. Nunca bloqueia a navegação. */
+const ACCOUNT_FEATURES = {
+  criar: {title:'Criar seus próprios conteúdos', why:'A trilha de um conteúdo novo é montada por IA e fica guardada no seu perfil. Para isso, entre com o Google.'},
+  adicionar: {title:'Adicionar conteúdos do catálogo', why:'Cada conteúdo do catálogo ganha uma trilha montada por IA, guardada no seu perfil. Para isso, entre com o Google.'},
+  materia: {title:'Criar matérias', why:'Matérias próprias organizam os conteúdos que você cria, e isso fica guardado no seu perfil. Para isso, entre com o Google.'},
+  entrar: {title:'Entrar com o Google', why:'Você continua de onde está, com tudo o que já fez como visitante.'},
+};
+function AccountSheet(){
+  const {accountAsk, closeAccountAsk} = useApp();
+  const {handleAuth} = useIdentity();
+  const [unavailable, setUnavailable] = useState(false);
+  if(!accountAsk) return null;
+  const f = ACCOUNT_FEATURES[accountAsk.feature] || ACCOUNT_FEATURES.entrar;
+  const isEntrar = accountAsk.feature === 'entrar';
+  return (
+    <ModalShell onClose={closeAccountAsk} labelledBy="acc-title" z={70}>
+      {!isEntrar && <p className="text-[13px] leading-[16px] font-semibold text-sf-muted m-0 flex items-center gap-1.5"><IconLock size={13}/> Precisa de uma conta</p>}
+      <h2 id="acc-title" className="text-[20px] leading-[26px] font-bold text-sf-text mt-2 mb-0">{f.title}</h2>
+      <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">{f.why}</p>
+      {!isEntrar && <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">O que você estudou como visitante vai junto para a conta, e você volta para esta tela.</p>}
+      <div className="mt-5">
+        <GoogleSignInButton onAuth={handleAuth} onUnavailable={()=>setUnavailable(true)}/>
+      </div>
+      <button type="button" onClick={closeAccountAsk} className="sf-btn sf-btn-ghost w-full mt-3 h-11 text-[15px] font-semibold">
+        {isEntrar ? 'Agora não' : 'Continuar explorando'}
+      </button>
+      {unavailable && <span className="sr-only-live" role="status">Login do Google indisponível no momento.</span>}
+    </ModalShell>
+  );
+}
+
+/* Aviso depois de entrar: o progresso de visitante foi levado para a conta. */
+function NoticeBanner(){
+  const {notice, dismissNotice} = useApp();
+  useEffect(()=>{ if(notice){ const t = setTimeout(dismissNotice, 9000); return ()=> clearTimeout(t); } }, [notice]);
+  if(!notice || notice.kind !== 'migrated') return null;
+  const parts = [];
+  if(notice.modulesDone) parts.push(`${notice.modulesDone} ${plural(notice.modulesDone, 'módulo concluído', 'módulos concluídos')}`);
+  if(notice.minutes) parts.push(`${fmtMin(notice.minutes)} de foco`);
+  return (
+    <div role="status" className="fixed left-1/2 -translate-x-1/2 top-3 w-[calc(100%-24px)] max-w-[420px] z-40 rounded-2xl p-3 flex items-center gap-3 bg-sf-surface"
+      style={{border:'1px solid var(--success-border)', boxShadow:'var(--shadow-modal)', marginTop:'env(safe-area-inset-top,0px)'}}>
+      <span className="text-sf-success shrink-0"><IconCheck size={18}/></span>
+      <p className="flex-1 min-w-0 text-[14px] text-sf-text leading-snug m-0">
+        <span className="font-semibold">Seu progresso de visitante veio junto.</span> {parts.join(' e ')}.
+      </p>
+      <button type="button" onClick={dismissNotice} aria-label="Dispensar aviso" className="sf-btn sf-btn-ghost w-11 h-11 -mr-1 flex items-center justify-center shrink-0"><IconClose size={16}/></button>
     </div>
   );
 }
@@ -2501,7 +2941,7 @@ function VideoCard({ video, onClick }){
 
 /* Prévia de conteúdo do catálogo (A26/A27). Depois de adicionar, a folha continua aberta e confirma a ação. */
 function SubjectPreviewModal({ item, onClose }){
-  const { isUserSubject, addUserSubject, openDetalhe, contents, openJornada } = useApp();
+  const { isUserSubject, addUserSubject, openDetalhe, contents, openJornada, isVisitor } = useApp();
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -2514,6 +2954,8 @@ function SubjectPreviewModal({ item, onClose }){
   useEffect(()=>{
     let cancelled = false;
     setLoading(true); setError(false); setSummary(null);
+    /* visitante: sem chamada à IA; a prévia usa a descrição e os módulos do catálogo */
+    if(isVisitor){ setSummary({summary: item.desc || '', whatYouLearn: []}); setLoading(false); return; }
     fetchSubjectSummary(item.title).then(res=>{
       if(cancelled) return;
       if(res) setSummary(res); else setError(true);
@@ -2522,7 +2964,7 @@ function SubjectPreviewModal({ item, onClose }){
     return ()=>{ cancelled = true; };
   }, [item.id, reloadKey]);
 
-  const handleAdd = ()=>{ if(alreadyAdded) return; addUserSubject(item); setJustAdded(true); };
+  const handleAdd = ()=>{ if(alreadyAdded) return; if(addUserSubject(item)) setJustAdded(true); };
   const handleOpen = ()=>{ onClose(); openDetalhe(item.id); };
 
   const topics = (summary && summary.whatYouLearn && summary.whatYouLearn.length > 0)
@@ -2567,7 +3009,8 @@ function SubjectPreviewModal({ item, onClose }){
           </>
         ) : (
           <>
-            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px]">Adicionar em {subjName(item.subjectId)}</button>
+            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px] inline-flex items-center justify-center gap-2">{isVisitor && <IconLock size={14}/>}Adicionar em {subjName(item.subjectId)}</button>
+            {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 text-center">Adicionar conteúdos pede uma conta Google.</p>}
             <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Fechar</button>
           </>
         )}
@@ -2579,31 +3022,9 @@ function SubjectPreviewModal({ item, onClose }){
 function fmtMin(total){ const h = Math.floor(total/60), m = total%60; return h>0 ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`; }
 function plural(n, one, many){ return n === 1 ? one : many; }
 
-/* Linha "Hoje" (A01): tempo, sessões e dias seguidos. Valores em SF/Conteúdo/Stat. */
-function TodayStats({todayStats}){
-  const items = [
-    {v: fmtMin(todayStats.studiedMin), l: 'estudados'},
-    {v: todayStats.sessionsCount, l: plural(todayStats.sessionsCount, 'sessão', 'sessões')},
-    {v: todayStats.streak, l: plural(todayStats.streak, 'dia seguido', 'dias seguidos'), flame: true},
-  ];
-  return (
-    <dl className="grid grid-cols-3 gap-3 m-0">
-      {items.map((it, i)=> it.flame ? (
-        <div key={i} className="min-w-0"><dt className="sr-only-live">Ofensiva</dt><dd className="m-0"><StreakStat todayStats={todayStats}/></dd></div>
-      ) : (
-        <div key={i} className="min-w-0 flex flex-col-reverse">
-          <dt className="text-[14px] leading-[20px] text-sf-muted">{it.l}</dt>
-          <dd className="m-0 sf-ed-stat text-sf-text flex items-center gap-1.5">
-            {it.v}{it.flame && <span className="text-sf-muted inline-flex" aria-hidden="true"><IconFlame size={13}/></span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 /* ============================================================
-   MASCOTE (briefing §5) — companheiro de constância. Função separada do conteúdo:
+   MASCOTE (briefing §5) — EM PAUSA (nov/2026): fora da interface; código e dados (sf_mascot) mantidos para retomar depois.
+   Companheiro de constância. Função separada do conteúdo:
    mascote = motivação, ofensiva, conquistas e evolução pessoal; matérias/módulos = aprendizagem.
    Aparece só junto ao indicador de ofensiva (Início) e na própria jornada. Nada de moedas, loja ou níveis artificiais.
    Tudo vem de dados reais: dias com sessão registrada (a mesma regra da ofensiva).
@@ -2718,24 +3139,6 @@ function MascotSvg({kind='lume', color='azul', acc='nenhum', mood='new', stage=0
 }
 function Mascot({m, mood, stage, size, title}){
   return <span className="sf-mascot inline-flex" data-mood={mood}><MascotSvg kind={m.kind} color={m.color} acc={m.acc} mood={mood} stage={stage} size={size} title={title}/></span>;
-}
-
-/* Indicador de ofensiva no Início: o mascote fica junto do número e abre a jornada. Sem mascote escolhido, mostra a chama e convida. */
-function StreakStat({todayStats}){
-  const {openMascote} = useApp();
-  const mz = useMascot();
-  const n = todayStats.streak;
-  return (
-    <button type="button" onClick={openMascote} className="min-w-0 flex flex-col-reverse items-start text-left bg-transparent border-0 p-0 cursor-pointer rounded-lg"
-      aria-label={`${n} ${plural(n,'dia seguido','dias seguidos')}. Abrir a jornada da ofensiva${mz.m ? ` com ${mz.m.name}` : ''}`}>
-      <span className="text-[14px] leading-[20px] text-sf-muted" aria-hidden="true">{plural(n, 'dia seguido', 'dias seguidos')}</span>
-      <span className="sf-ed-stat text-sf-text flex items-center gap-1.5" aria-hidden="true">
-        {n}
-        {mz.m ? <Mascot m={mz.m} mood={mz.mood} stage={mascotStage(mz.best)} size={30}/> : <span className="text-sf-muted inline-flex"><IconFlame size={13}/></span>}
-        <span className="text-sf-muted inline-flex"><IconChevronR size={14}/></span>
-      </span>
-    </button>
-  );
 }
 
 /* Escolha e personalização (primeira vez e "Personalizar"). */
@@ -2878,204 +3281,216 @@ function MascoteScreen(){
   );
 }
 
+/* ---------- Semana de foco (segunda a domingo), usada na home e em Progresso ---------- */
+const WEEK_LABELS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const WEEK_INITIALS = ['S','T','Q','Q','S','S','D'];
+const WEEK_LONG = ['segunda','terça','quarta','quinta','sexta','sábado','domingo'];
+function sessionDay(x){ const ts = x.startedAt || x.dateTs; return ts ? toDateStr(new Date(ts)) : null; }
+function weekStats(liveSessions){
+  const today = todayStr();
+  const offset = (parseDateStr(today).getDay() + 6) % 7;
+  const start = addDaysStr(today, -offset);
+  const prevStart = addDaysStr(start, -7);
+  const byDay = {};
+  (liveSessions || []).forEach(x => { const ds = sessionDay(x); if(ds) byDay[ds] = (byDay[ds] || 0) + (x.durationMin || 0); });
+  const days = Array.from({length:7}, (_, i) => { const ds = addDaysStr(start, i); return {ds, min: byDay[ds] || 0, label: WEEK_LABELS[i], initial: WEEK_INITIALS[i], isToday: ds === today, isFuture: i > offset}; });
+  let prevWeekMin = 0;
+  for(let i = 0; i < 7; i++) prevWeekMin += byDay[addDaysStr(prevStart, i)] || 0;
+  return {days, todayIdx: offset, weekMin: days.reduce((a, d)=> a + d.min, 0), prevWeekMin, maxMin: Math.max(1, ...days.map(d => d.min))};
+}
+function weekCompareLine(w){
+  if(!w.prevWeekMin) return w.weekMin ? 'Primeira semana com foco registrado' : '';
+  const diff = w.weekMin - w.prevWeekMin;
+  if(diff === 0) return 'Igual à semana passada';
+  return `${fmtMin(Math.abs(diff))} ${diff > 0 ? 'a mais' : 'a menos'} que na semana passada`;
+}
+
+/* Faixa da semana na home: 7 barras pequenas, hoje em destaque. Toda a faixa leva a Progresso. */
+function WeekStrip({liveSessions, onOpen}){
+  const w = useMemo(()=> weekStats(liveSessions), [liveSessions]);
+  const compare = weekCompareLine(w);
+  const summary = w.days.map(d => `${d.label}: ${d.min} min`).join(', ');
+  return (
+    <button type="button" onClick={onOpen} className="sf-weekstrip w-full text-left bg-transparent border-0 p-0 cursor-pointer rounded-xl"
+      aria-label={`Esta semana: ${fmtMin(w.weekMin)} de foco. ${compare ? compare + '. ' : ''}${summary}. Abrir Progresso`}>
+      <span className="flex items-end justify-between gap-3" aria-hidden="true">
+        <span className="min-w-0">
+          <span className="sf-ed-stat text-sf-text block">{fmtMin(w.weekMin)}</span>
+          <span className="text-[14px] leading-[20px] text-sf-muted block">{w.weekMin ? (compare || 'de foco nesta semana') : 'Sua primeira sessão de foco da semana aparece aqui'}</span>
+        </span>
+        <span className="text-sf-muted inline-flex shrink-0 mb-1"><IconChevronR/></span>
+      </span>
+      <span className="mt-4 grid grid-cols-7 gap-2" aria-hidden="true">
+        {w.days.map(d => (
+          <span key={d.ds} className="flex flex-col items-center gap-1.5">
+            <span className="w-full flex items-end justify-center" style={{height: w.weekMin ? 40 : 8}}>
+              <span className="w-full max-w-[28px] rounded-[4px]" style={{
+                height: d.min > 0 ? `${Math.max(14, d.min / w.maxMin * 100)}%` : 3,
+                background: d.min > 0 ? (d.isToday ? 'var(--chart-bar-hl)' : 'var(--chart-bar)') : 'var(--chart-empty)',
+                opacity: d.isFuture ? .5 : 1}}/>
+            </span>
+            <span className={`text-[13px] leading-[16px] ${d.isToday ? 'font-bold text-sf-text' : 'font-medium text-sf-muted'}`}>{d.initial}</span>
+          </span>
+        ))}
+      </span>
+    </button>
+  );
+}
+
+/* Conteúdo para retomar: o último aberto (se ainda tem módulo pendente); senão, o de maior progresso. */
+function pickResumeContent(contents, lastContentId){
+  const last = lastContentId ? contents.find(c => c.id === lastContentId) : null;
+  if(last && getNextPendingTopic(last)) return last;
+  return pickPriorityContent(contents);
+}
+
 function HomeScreen(){
-  const {user, todayStats, openDetalhe, openModule, contents, goTab, openYouTubeVideo, lastWatchedVideo, planner, liveSessions, session, startPlannerSession, togglePlannerDone, setTimerExpanded} = useApp();
+  const {user, isVisitor, askAccount, streak, openDetalhe, openModule, contents, goTab, lastWatchedVideo, lastContentId,
+    planner, liveSessions, session, startPlannerSession, togglePlannerDone, setTimerExpanded} = useApp();
   const band = useBand();
   const desk = isDeskBand(band);
 
-  const continueVideo = useMemo(()=>{
-    const w = lastWatchedVideo;
-    if(!w || !isValidYouTubeId(w.id)) return null;
-    return {
-      video: { id: w.id, title: w.title || 'Vídeo', channel: w.channel || 'YouTube', thumbnail: safeImageUrl(w.thumbnail),
-               description: w.description || '', subjectId: w.subjectId || null },
-      context: { subjectId: w.subjectId, topic: w.topic },
-      contentId: w.contentId || null, topicIndex: Number.isInteger(w.topicIndex) ? w.topicIndex : null,
-    };
-  }, [lastWatchedVideo]);
-  /* Fase 4: vídeo assistido dentro de um módulo reabre o próprio módulo (onde o tempo assistido é contado). */
-  const openContinueVideo = ()=>{
-    const cv = continueVideo;
-    if(!cv) return;
-    const c = cv.contentId ? contents.find(x => x.id === cv.contentId) : null;
-    if(c && c.topics && c.topics[cv.topicIndex]) openModule(c.id, cv.topicIndex);
-    else openYouTubeVideo(cv.video, null, cv.context);
-  };
+  const pc = useMemo(()=> pickResumeContent(contents, lastContentId), [contents, lastContentId]);
+  const others = useMemo(()=> orderContentsByActivity(contents).filter(c => !pc || c.id !== pc.id), [contents, pc]);
 
-  const priorityContent = useMemo(()=> pickPriorityContent(contents), [contents]);
-  const otherContents = useMemo(
-    ()=> orderContentsByActivity(contents).filter(c => !priorityContent || c.id !== priorityContent.id),
-    [contents, priorityContent]);
-  const firstName = user.name.split(' ')[0];
-
-  /* "Nada no Plano para hoje" (aprovado): só lê os itens do Plano com a data de hoje; não cria nada. */
   const today = todayStr();
   const todayPlan = planner.filter(p => p.date === today);
-  const todayPending = todayPlan.filter(p => !p.done);
-  const planLine = !todayPlan.length ? 'Nada no Plano para hoje'
-    : (todayPending.length ? `${todayPending.length} ${plural(todayPending.length, 'atividade', 'atividades')} no Plano para hoje` : 'Plano de hoje concluído');
+  const todayPending = todayPlan.filter(p => !p.done).sort((a,b)=> String(a.time||'99').localeCompare(String(b.time||'99')));
 
-  const hoje = (
-    <section className="px-5 mt-10" aria-labelledby="h-hoje">
-      <SectionTitle id="h-hoje">Hoje</SectionTitle>
-      {todayStats.sessionsCount > 0 || contents.length > 0
-        ? <div className="mt-3"><TodayStats todayStats={todayStats}/></div>
-        : null}
-      {todayStats.sessionsCount === 0 && contents.length === 0 && (
-        <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Nenhuma sessão ainda. O tempo aparece aqui quando você começar um foco.</p>
+  const firstName = user.visitor ? '' : user.name.split(' ')[0];
+  const dateLine = capitalize(new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'}).replace('-feira',''));
+  const header = (
+    <header>
+      <ScreenTitle>{getGreeting()}{firstName ? `, ${firstName}` : ''}</ScreenTitle>
+      <p className="text-[15px] leading-[20px] text-sf-muted mt-1 mb-0 flex items-center gap-1.5 flex-wrap">
+        <span>{dateLine}</span>
+        {streak > 0 && <><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1 text-sf-text"><span className="inline-flex text-sf-accent" aria-hidden="true"><IconFlame size={15}/></span>{streak} {plural(streak, 'dia seguido', 'dias seguidos')}</span></>}
+      </p>
+      {isVisitor && (
+        <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0">
+          Modo visitante · <button type="button" onClick={()=>askAccount('entrar')} className="sf-link-btn">Entrar com Google</button>
+        </p>
       )}
-      {contents.length > 0 && (
-        <div className="mt-4 flex items-center gap-2 min-h-[44px]">
-          <span className="text-sf-muted inline-flex" aria-hidden="true"><IconCalendar size={16}/></span>
-          <p className="flex-1 min-w-0 text-[14px] leading-[20px] text-sf-muted truncate">{planLine}</p>
-          <button type="button" onClick={()=>goTab('plano')} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">
-            {todayPlan.length ? 'Ver plano' : 'Planejar'}
-          </button>
+    </header>
+  );
+
+  /* ---------- Retomar ---------- */
+  let resumeBlock = null;
+  if(pc){
+    const prog = getContentProgress(pc);
+    const nextIdx = prog.nextIndex;
+    const nextTopic = nextIdx >= 0 ? pc.topics[nextIdx] : null;
+    const nextType = nextTopic ? getTopicType(pc, nextIdx) : null;
+    const NextIcon = nextTopic ? MODULE_META[nextType].Icon : null;
+    const started = prog.completed > 0;
+    const videoPending = !!(nextTopic && lastWatchedVideo && lastWatchedVideo.contentId === pc.id && lastWatchedVideo.topicIndex === nextIdx);
+    const cta = nextTopic ? (videoPending ? 'Retomar videoaula' : (started ? 'Continuar' : 'Começar')) : (prog.total ? 'Revisar' : 'Abrir conteúdo');
+    const go = ()=> (nextTopic ? openModule(pc.id, nextIdx) : openDetalhe(pc.id));
+    resumeBlock = (
+      <section aria-labelledby="h-retomar" className="rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
+        <h2 id="h-retomar" className="sr-only-live">{started ? 'Continue de onde parou' : 'Comece por aqui'}</h2>
+        <div className="flex items-center gap-3">
+          <SubjectTile subjectId={pc.subjectId}/>
+          <span className="flex-1 min-w-0">
+            <span className="sf-ed-content text-sf-text block" style={{display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{pc.title}</span>
+            <span className="text-[14px] leading-[20px] text-sf-muted block">{modulesLabel(pc)}</span>
+          </span>
+          <button type="button" onClick={()=>openDetalhe(pc.id)} className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px] font-semibold shrink-0" aria-label={`Ver trilha de ${pc.title}`}>Ver trilha</button>
         </div>
+        {prog.total > 0 && <SegmentedTrail className="mt-4" states={trailStates(pc)} label={`Trilha de ${pc.title}`}/>}
+        {nextTopic ? (
+          <div className="mt-4">
+            <p className="text-[14px] leading-[20px] text-sf-muted m-0 flex items-center gap-1.5">
+              <span className="inline-flex" aria-hidden="true"><NextIcon size={15}/></span>
+              {started ? 'Próximo' : 'Primeiro'} · {MODULE_META[nextType].label}
+            </p>
+            <p className="sf-ed-content text-sf-text mt-1 mb-0">{nextTopic.t}</p>
+          </div>
+        ) : (
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-4 mb-0">
+            {prog.total ? 'Conteúdo concluído. Uma revisão com os flashcards ajuda a fixar.' : (pc.journeyStatus === 'loading' ? 'Montando a trilha. Pode levar até 30 segundos.' : 'Trilha ainda não disponível. Abra o conteúdo para tentar de novo.')}
+          </p>
+        )}
+        <button type="button" onClick={go} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]"
+          aria-label={nextTopic ? `${cta}: ${nextTopic.t}` : `${cta}: ${pc.title}`}>{cta}</button>
+      </section>
+    );
+  } else {
+    resumeBlock = (
+      <section aria-labelledby="h-comece" className="rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
+        <h2 id="h-comece" className="text-[17px] leading-[23px] font-semibold text-sf-text m-0">Comece pelo primeiro conteúdo</h2>
+        <p className="text-[15px] leading-[21px] text-sf-muted mt-1.5 mb-0">Escolha um tema e o STUDY monta uma trilha com videoaulas, leitura, flashcards e uma avaliação no fim.</p>
+        <button type="button" onClick={()=>goTab('estudar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]">Explorar conteúdos</button>
+      </section>
+    );
+  }
+
+  /* ---------- Esta semana ---------- */
+  const hasEverStudied = liveSessions.length > 0;
+  const weekBlock = contents.length > 0 && (
+    <section aria-labelledby="h-semana">
+      <SectionTitle id="h-semana">Esta semana</SectionTitle>
+      <div className="mt-3"><WeekStrip liveSessions={liveSessions} onOpen={()=>goTab('progresso')}/></div>
+      {!todayPlan.length && (
+        <button type="button" onClick={()=>goTab('plano')} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-1 text-[14px] font-semibold inline-flex items-center gap-1.5">
+          <IconCalendar size={16}/> {hasEverStudied ? 'Planejar a semana' : 'Planejar quando estudar'}
+        </button>
       )}
     </section>
   );
 
-  if(contents.length === 0){
-    return (
-      <div className="pt-16 pb-8">
-        <div className="px-5">
-          <p className="sf-ed-lead text-sf-muted">{getGreeting()}, {firstName}</p>
-          <ScreenTitle className="mt-1">Escolha o que estudar</ScreenTitle>
-          <div className="mt-5 rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
-            <p className="text-[16px] leading-[22px] font-semibold text-sf-text">Comece pelo primeiro conteúdo</p>
-            <p className="text-[14px] leading-[20px] text-sf-muted mt-1.5">Escolha um tema e o STUDY monta uma trilha com videoaulas, leitura, flashcards e uma avaliação no fim.</p>
-            <button type="button" onClick={()=>goTab('estudar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[14px]">Explorar conteúdos</button>
-          </div>
-        </div>
-        {hoje}
+  /* ---------- Plano de hoje (só quando existe) ---------- */
+  const planBlock = todayPlan.length > 0 && (
+    <section aria-labelledby="h-plano">
+      <div className="flex items-center gap-2">
+        <SectionTitle id="h-plano" className="flex-1">Plano de hoje</SectionTitle>
+        <button type="button" onClick={()=>goTab('plano')} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver plano</button>
       </div>
-    );
-  }
-
-  const pc = priorityContent;
-  const prog = getContentProgress(pc);
-  const nextIdx = prog.nextIndex;
-  const nextTopic = nextIdx >= 0 ? pc.topics[nextIdx] : null;
-  const NextIcon = nextTopic ? MODULE_META[getTopicType(pc, nextIdx)].Icon : null;
-  const started = prog.completed > 0;
-  const goPriority = ()=> (nextTopic ? openModule(pc.id, nextIdx) : openDetalhe(pc.id));
-
-  const priorityCard = (
-        <div className="rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
-          <button type="button" onClick={()=>openDetalhe(pc.id)} className="w-full flex items-center gap-3 text-left bg-transparent border-0 p-0 cursor-pointer">
-            <SubjectTile subjectId={pc.subjectId}/>
-            <span className="flex-1 min-w-0">
-              <span className="sf-ed-content text-sf-text block truncate">{pc.title}</span>
-              <span className="text-[14px] leading-[20px] text-sf-muted block">{modulesLabel(pc)}</span>
-            </span>
-          </button>
-          {prog.total > 0 && <SegmentedTrail className="mt-4" states={trailStates(pc)} label={`Trilha de ${pc.title}`}/>}
-          {nextTopic ? (
-            <>
-              <p className="text-[14px] leading-[20px] text-sf-muted mt-4">Próximo módulo</p>
-              <p className="mt-1 flex items-start gap-2">
-                <span className="text-sf-muted inline-flex mt-1" aria-hidden="true"><NextIcon size={16}/></span>
-                <span className="sf-ed-content text-sf-text min-w-0">{nextTopic.t}</span>
-              </p>
-            </>
-          ) : (
-            <p className="text-[14px] leading-[20px] text-sf-muted mt-4">
-              {prog.total ? 'Conteúdo concluído. Ideal para revisar hoje.' : (pc.journeyStatus === 'loading' ? 'Montando a trilha…' : 'Trilha ainda não disponível. Abra o conteúdo para tentar de novo.')}
-            </p>
-          )}
-          <button type="button" onClick={goPriority} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[14px]">
-            {nextTopic ? (started ? 'Continuar' : 'Começar') : (prog.total ? 'Revisar' : 'Abrir conteúdo')}
-          </button>
+      {todayPending.length ? (
+        <div className="mt-1">
+          {todayPending.slice(0,3).map(it => (
+            <PlanItemRow key={it.id} it={it} isActive={!!session && session.plannerId===it.id} otherActive={!!session && session.plannerId!==it.id}
+              onOpen={()=>goTab('plano')} onToggle={()=>togglePlannerDone(it.id)} onStart={()=>startPlannerSession(it.id)} onOpenTimer={()=>setTimerExpanded(true)}/>
+          ))}
+          {todayPending.length > 3 && <p className="text-[14px] text-sf-muted mt-2 mb-0">Mais {todayPending.length - 3} no Plano</p>}
         </div>
+      ) : (
+        <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 flex items-center gap-2"><span className="text-sf-success inline-flex" aria-hidden="true"><IconCheck size={16}/></span>Plano de hoje concluído</p>
+      )}
+    </section>
   );
-  const videoSection = (<>
-      {continueVideo && (
-        <section className="px-5 mt-10" aria-labelledby="h-video">
-          <SectionTitle id="h-video">Última videoaula assistida</SectionTitle>
-          <button type="button" onClick={openContinueVideo}
-            className="mt-3 w-full flex items-start gap-3 text-left bg-transparent border-0 p-0 cursor-pointer" aria-label={`Abrir vídeo ${continueVideo.video.title}`}>
-            <span className="relative w-24 h-[54px] rounded-xl overflow-hidden flex items-center justify-center shrink-0" style={{background:'var(--bg-elevated)'}}>
-              {continueVideo.video.thumbnail && <img src={continueVideo.video.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover"/>}
-              <span className="relative text-sf-muted inline-flex"><IconPlay size={10}/></span>
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="sf-ed-content text-sf-text block" style={{display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{continueVideo.video.title}</span>
-              <span className="text-[14px] leading-[20px] text-sf-muted block truncate mt-0.5">{continueVideo.video.channel}</span>
-            </span>
-          </button>
-        </section>
-      )}
-  </>);
-  const othersSection = (<>
-      {otherContents.length > 0 && (
-        <section className="px-5 mt-10" aria-labelledby="h-conteudos">
-          <SectionTitle id="h-conteudos" className="mb-1">Seus conteúdos</SectionTitle>
-          {otherContents.map(c => <ContentRow key={c.id} c={c} onClick={()=>openDetalhe(c.id)}/>)}
-        </section>
-      )}
-  </>);
+
+  /* ---------- Seus conteúdos ---------- */
+  const othersBlock = others.length > 0 && (
+    <section aria-labelledby="h-conteudos">
+      <div className="flex items-center gap-2">
+        <SectionTitle id="h-conteudos" className="flex-1">Seus conteúdos</SectionTitle>
+        {others.length > 3 && <button type="button" onClick={()=>goTab('estudar')} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver todos</button>}
+      </div>
+      <div className="mt-1">{others.slice(0,3).map(c => <ContentRow key={c.id} c={c} trail onClick={()=>openDetalhe(c.id)}/>)}</div>
+    </section>
+  );
 
   if(desk){
-    /* Início · desktop (Figma 1440/1024): coluna principal com continuidade e conteúdos; painel com o que é do dia. */
-    const weekStart = startOfWeekTs();
-    const weekMin = liveSessions.filter(x => (x.startedAt || x.dateTs || 0) >= weekStart).reduce((a,x)=> a + (x.durationMin || 0), 0);
-    const pendingSorted = [...todayPending].sort((a,b)=> String(a.time||'99').localeCompare(String(b.time||'99')));
     return (
       <div className="sf-wide pb-8">
-        <p className="sf-ed-lead text-sf-muted">{getGreeting()}, {firstName}</p>
-        <ScreenTitle className="mt-1">{started ? 'Continue de onde parou' : 'Um bom ponto de partida'}</ScreenTitle>
-        <div className="sf-cols mt-6">
-          <div className="sf-col-main [&>section]:px-0">
-            {priorityCard}
-            {othersSection}
-          </div>
-          <aside className="sf-col-panel" aria-label="Hoje">
-            <section aria-labelledby="h-hoje-d">
-              <SectionTitle id="h-hoje-d">Hoje</SectionTitle>
-              <div className="mt-3"><TodayStats todayStats={todayStats}/></div>
-              <div className="mt-3 flex items-center gap-2 min-h-[44px]">
-                <p className="flex-1 min-w-0 text-[14px] leading-[18px] text-sf-muted">{weekMin} min de foco nesta semana</p>
-                <button type="button" onClick={()=>goTab('progresso')} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[15px] font-semibold">Ver progresso</button>
-              </div>
-            </section>
-            <section aria-labelledby="h-plano-d">
-              <div className="flex items-center gap-2">
-                <SectionTitle id="h-plano-d" className="flex-1">Plano de hoje</SectionTitle>
-                <button type="button" onClick={()=>goTab('plano')} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[15px] font-semibold">{todayPlan.length ? 'Ver plano' : 'Planejar'}</button>
-              </div>
-              {pendingSorted.length ? (
-                <div className="mt-1">
-                  {pendingSorted.slice(0,3).map(it => (
-                    <PlanItemRow key={it.id} it={it} isActive={!!session && session.plannerId===it.id} otherActive={!!session && session.plannerId!==it.id}
-                      onOpen={()=>goTab('plano')} onToggle={()=>togglePlannerDone(it.id)} onStart={()=>startPlannerSession(it.id)} onOpenTimer={()=>setTimerExpanded(true)}/>
-                  ))}
-                  {pendingSorted.length > 3 && <p className="text-[13px] text-sf-muted mt-2">Mais {pendingSorted.length - 3} no Plano</p>}
-                </div>
-              ) : (
-                <p className="mt-2 flex items-center gap-2 text-[14px] leading-[18px] text-sf-muted"><span className="inline-flex" aria-hidden="true"><IconCalendar size={16}/></span>{planLine}</p>
-              )}
-            </section>
-            {continueVideo && <div className="[&>section]:px-0 [&>section]:mt-0">{videoSection}</div>}
-          </aside>
+        {header}
+        <div className="sf-cols mt-8">
+          <div className="sf-col-main flex flex-col gap-10">{resumeBlock}{othersBlock}</div>
+          <aside className="sf-col-panel flex flex-col gap-10" aria-label="Sua semana">{weekBlock}{planBlock}</aside>
         </div>
       </div>
     );
   }
-
   return (
-    <div className="pt-16 pb-8">
-      <div className="px-5">
-        <p className="sf-ed-lead text-sf-muted">{getGreeting()}, {firstName}</p>
-        <ScreenTitle className="mt-1">{started ? 'Continue de onde parou' : 'Um bom ponto de partida'}</ScreenTitle>
-        <div className="mt-5">{priorityCard}</div>
+    <div className="pt-16 pb-8 px-5 flex flex-col gap-10">
+      <div>
+        {header}
+        <div className="mt-6">{resumeBlock}</div>
       </div>
-
-      {hoje}
-
-      {videoSection}
-
-      {othersSection}
+      {weekBlock}
+      {planBlock}
+      {othersBlock}
     </div>
   );
 }
@@ -3094,7 +3509,7 @@ function subjectSummary(items){
 }
 function contentStateLabel(c){
   const p = getContentProgress(c);
-  if(p.total > 0 && p.completed === p.total) return 'Concluído';
+  if(p.total > 0 && p.completed === p.total) return isDemoContent(c) ? 'Exemplo · Concluído' : 'Concluído';
   return modulesLabel(c);
 }
 function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview}){
@@ -3184,8 +3599,9 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
 }
 
 function ExplorarScreen(){
-  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects, openDetalhe, openSubjectSheet, subjectsStore} = useApp();
+  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects, openDetalhe, openSubjectSheet, subjectsStore, isVisitor} = useApp();
   const [query,setQuery] = useState('');
+  const lock = isVisitor ? <span className="inline-flex text-sf-muted" aria-hidden="true"><IconLock size={13}/></span> : null;
   const [previewItem, setPreviewItem] = useState(null);
 
   const words = useMemo(()=> queryWords(query), [query]);
@@ -3216,7 +3632,8 @@ function ExplorarScreen(){
     <div className="pt-16 px-5 pb-8">
       <div className="flex items-start justify-between gap-3">
         <ScreenTitle>Explorar</ScreenTitle>
-        <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0">Criar conteúdo</button>
+        <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0 inline-flex items-center gap-1.5"
+          aria-label={isVisitor ? 'Criar conteúdo (pede conta Google)' : undefined}>{lock}Criar conteúdo</button>
       </div>
 
       <label className="sf-fieldbox mt-5 h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
@@ -3231,7 +3648,7 @@ function ExplorarScreen(){
         <div className="mt-8" role="status">
           <p className="text-[16px] leading-[22px] font-semibold text-sf-text">Nada encontrado para “{query.trim()}”</p>
           <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Tente outro termo ou crie um conteúdo com esse tema.</p>
-          <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary w-full mt-4 h-12 text-[14px]">Criar conteúdo</button>
+          <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary w-full mt-4 h-12 text-[14px] inline-flex items-center justify-center gap-1.5">{lock}Criar conteúdo</button>
         </div>
       ) : (
         <section className="mt-6" aria-labelledby="h-materias">
@@ -3247,7 +3664,7 @@ function ExplorarScreen(){
           </ul>
           {!searching && (
             <button type="button" onClick={()=>openSubjectSheet({})} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-2 text-[14px] font-semibold inline-flex items-center gap-1.5">
-              <IconPlus size={16}/> Nova matéria
+              <IconPlus size={16}/> Nova matéria {lock}
             </button>
           )}
         </section>
@@ -3275,8 +3692,10 @@ function DetalheScreen({contentId}){
       <div className="mt-4 flex items-center gap-3">
         <SubjectTile subjectId={c.subjectId}/>
         <span className="text-[14px] text-sf-muted">{subjName(c.subjectId)}</span>
+        {isDemoContent(c) && <DemoTag/>}
       </div>
       <SubTitle className="mt-4">{c.title}</SubTitle>
+      {isDemoContent(c) && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0">Trilha de exemplo do STUDY: textos, flashcards e avaliação escritos pela equipe. Seu progresso nela é real.</p>}
     </>
   );
 
@@ -3779,10 +4198,56 @@ function ConcluidaScreen(){
 }
 
 /* Progresso (A21). Semana de segunda a domingo, a mesma do Plano. Média = averageStartedPct (regra única, também usada no Início). */
+/* Ofensiva e conquistas (antes na tela do mascote). Tudo vem de sessões registradas: abrir o app não conta. */
+const STREAK_MARKS = [1, 3, 7, 14, 30, 60, 100];
+function StreakSection({streak, studyDates, liveSessions}){
+  const best = useMemo(()=> longestStreak(studyDates), [studyDates]);
+  const totalMin = liveSessions.reduce((a, x)=> a + (x.durationMin || 0), 0);
+  const next = STREAK_MARKS.find(d => d > streak);
+  const ach = [
+    {k:'s1', t:'Primeira sessão', h:'Registre uma sessão de foco', ok: liveSessions.length >= 1},
+    {k:'s10', t:'Dez sessões', h:'Registre 10 sessões de foco', ok: liveSessions.length >= 10},
+    {k:'h5', t:'Cinco horas de foco', h:'Some 5 horas de foco', ok: totalMin >= 300},
+    {k:'d7', t:'Uma semana seguida', h:'Estude 7 dias seguidos', ok: best >= 7},
+    {k:'d30', t:'Um mês seguido', h:'Estude 30 dias seguidos', ok: best >= 30},
+  ];
+  const got = ach.filter(a => a.ok).length;
+  return (
+    <section className="mt-10" aria-labelledby="h-ofensiva">
+      <SectionTitle id="h-ofensiva">Ofensiva</SectionTitle>
+      <dl className="grid grid-cols-2 gap-6 mt-3 m-0">
+        <div className="flex flex-col-reverse"><dt className="text-[14px] leading-[20px] text-sf-muted">{plural(streak,'dia seguido','dias seguidos')}</dt><dd className="m-0 sf-ed-stat text-sf-text flex items-center gap-1.5">{streak}{streak > 0 && <span className="inline-flex text-sf-accent" aria-hidden="true"><IconFlame size={18}/></span>}</dd></div>
+        <div className="flex flex-col-reverse"><dt className="text-[14px] leading-[20px] text-sf-muted">melhor sequência</dt><dd className="m-0 sf-ed-stat text-sf-text">{best}</dd></div>
+      </dl>
+      {next && (
+        <div className="mt-4">
+          <p className="text-[14px] leading-[20px] text-sf-muted m-0 mb-2">{streak > 0 ? `Próximo marco: ${next} dias (${next - streak === 1 ? 'falta 1 dia' : `faltam ${next - streak} dias`})` : 'Primeiro marco: um dia com sessão de foco'}</p>
+          <ProgressBar value={(streak / next) * 100} height={4} color="var(--progress-fill)" label={`${streak} de ${next} dias`}/>
+        </div>
+      )}
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-3 mb-0">Conta um dia quando há pelo menos uma sessão de foco registrada.</p>
+      <h3 className="text-[16px] leading-[22px] font-semibold text-sf-text mt-6 mb-0">Conquistas <span className="text-sf-muted font-normal tnum">{got} de {ach.length}</span></h3>
+      <ul className="list-none p-0 m-0 mt-1">
+        {ach.map(a=>(
+          <li key={a.k} className="sf-row-div py-2.5 flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" aria-hidden="true"
+              style={{background: a.ok ? 'var(--success-tint)' : 'var(--bg-elevated)', color: a.ok ? 'var(--success)' : 'var(--text-tertiary)'}}>{a.ok ? <IconCheck size={15}/> : <IconLock size={13}/>}</span>
+            <span className="min-w-0">
+              <span className="block text-[15px] leading-[20px] font-semibold" style={{color: a.ok ? 'var(--text-primary)' : 'var(--text-secondary)'}}>{a.t}</span>
+              <span className="block text-[13px] leading-[16px] font-medium text-sf-muted">{a.ok ? 'Conquistada' : a.h}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* Semana de exemplo (só enquanto não há nenhuma sessão): ensina a ler o gráfico, sem fingir que é da pessoa. */
+const EXAMPLE_WEEK = [25, 0, 40, 15, 30, 0, 50];
+
 function ProgressoScreen(){
-  const {contents, liveSessions, openDetalhe, goTab} = useApp();
-  const WEEK_LABELS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
-  const WEEK_LONG = ['segunda','terça','quarta','quinta','sexta','sábado','domingo'];
+  const {contents, liveSessions, openDetalhe, goTab, streak, studyDates} = useApp();
   const stats = useMemo(()=>{
     const today = todayStr();
     const offset = (parseDateStr(today).getDay() + 6) % 7;
@@ -3798,7 +4263,9 @@ function ProgressoScreen(){
   }, [liveSessions]);
   const avg = averageStartedPct(contents);
   const started = orderContentsByActivity(contents).filter(isContentStarted);
-  const chartSummary = stats.days.map(d => `${d.label}: ${d.min} min`).join(', ');
+  const example = stats.sessionsCount === 0;
+  const exMax = Math.max(...EXAMPLE_WEEK);
+  const chartSummary = example ? 'Gráfico de exemplo, sem dados seus' : stats.days.map(d => `${d.label}: ${d.min} min`).join(', ');
 
   const band = useBand();
   const desk = isDeskBand(band);
@@ -3826,13 +4293,14 @@ function ProgressoScreen(){
         <span className="sf-ed-number text-sf-text">{fmtMin(stats.weekMin)}</span>
         <span className="text-[14px] text-sf-muted">de foco nesta semana</span>
       </p>
-      <div className="mt-6 flex items-end gap-2" style={{height: chartH, gap: desk ? 20 : 8}} role="img" aria-label={`Minutos de foco por dia nesta semana. ${chartSummary}`}>
-        {stats.days.map(d => (
+      {example && <p className="mt-4 mb-0 inline-flex items-center gap-2"><DemoTag/><span className="text-[14px] leading-[20px] text-sf-muted">Assim aparece sua semana. Some na sua primeira sessão de foco.</span></p>}
+      <div className="mt-6 flex items-end gap-2" style={{height: chartH, gap: desk ? 20 : 8, opacity: example ? .45 : 1}} role="img" aria-label={`Minutos de foco por dia nesta semana. ${chartSummary}`}>
+        {stats.days.map((d, i) => { const m = example ? EXAMPLE_WEEK[i] : d.min, max = example ? exMax : stats.maxMin; return (
           <div key={d.ds} className="flex-1 h-full flex flex-col items-center justify-end gap-1" aria-hidden="true">
-            <span className="text-[13px] font-medium text-sf-muted tnum whitespace-nowrap">{d.min > 0 ? `${d.min} min` : ''}</span>
-            <span className="w-full rounded-t-[6px]" style={{height: d.min > 0 ? `${Math.max(6, (d.min / stats.maxMin) * 82)}%` : 3, background: d.min > 0 ? 'var(--chart-bar)' : 'var(--chart-empty)', borderRadius: d.min > 0 ? undefined : 2}}/>
+            <span className="text-[13px] font-medium text-sf-muted tnum whitespace-nowrap">{m > 0 && !example ? `${m} min` : ''}</span>
+            <span className="w-full rounded-t-[6px]" style={{height: m > 0 ? `${Math.max(6, (m / max) * 82)}%` : 3, background: m > 0 ? (example ? 'var(--text-tertiary)' : 'var(--chart-bar)') : 'var(--chart-empty)', borderRadius: m > 0 ? undefined : 2}}/>
           </div>
-        ))}
+        ); })}
       </div>
       <div className="flex mt-0 pt-2" style={{borderTop:'1px solid var(--border)', gap: desk ? 20 : 8}} aria-hidden="true">
         {stats.days.map(d => <span key={d.ds} className={`flex-1 text-center ${d.isToday ? 'text-[15px] font-semibold' : 'text-[13px] font-medium'}`} style={{color: d.isToday ? 'var(--text-primary)' : 'var(--text-secondary)'}}>{d.label}</span>)}
@@ -3915,7 +4383,7 @@ function ProgressoScreen(){
         <ScreenTitle>Progresso</ScreenTitle>
         <div className="sf-cols mt-2" style={{'--cols-gap':'64px'}}>
           <div className="sf-col-main">{weekSection}{historySection}</div>
-          <aside className="sf-col-panel [&>section]:mt-6" style={{width:360, flexBasis:360}} aria-label="Conteúdos">{contentsSection}</aside>
+          <aside className="sf-col-panel [&>section]:mt-6" style={{width:360, flexBasis:360}} aria-label="Ofensiva e conteúdos"><StreakSection streak={streak} studyDates={studyDates} liveSessions={liveSessions}/>{contentsSection}</aside>
         </div>
       </div>
     );
@@ -3924,6 +4392,7 @@ function ProgressoScreen(){
     <div className="pt-16 px-5 pb-8">
       <ScreenTitle>Progresso</ScreenTitle>
       {weekSection}
+      <StreakSection streak={streak} studyDates={studyDates} liveSessions={liveSessions}/>
       {contentsSection}
       {historySection}
     </div>
@@ -4820,8 +5289,8 @@ function ProfileAvatar({user}){
     return <img src={user.picture} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" onError={()=>setBroken(true)}/>;
   }
   return (
-    <div aria-hidden="true" className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-semibold shrink-0" style={{background:'var(--bg-elevated)', color:'var(--text-primary)'}}>
-      {user.initials}
+    <div aria-hidden="true" className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-semibold shrink-0" style={{background:'var(--bg-elevated)', color: user.visitor ? 'var(--text-secondary)' : 'var(--text-primary)'}}>
+      {user.visitor ? <IconProfile size={22}/> : user.initials}
     </div>
   );
 }
@@ -4868,8 +5337,10 @@ function MenuGroup({items}){
 }
 
 function PerfilScreen(){
-  const {user, liveSessions, openJornada, openConfiguracoes, openMaterias, contents, signOut, goToView} = useApp();
+  const {user, liveSessions, openJornada, openConfiguracoes, openMaterias, contents, signOut, goToView, isVisitor, askAccount} = useApp();
+  const {clearVisitorData} = useIdentity();
   const [confirmOut, setConfirmOut] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const recent = liveSessions.slice(-4).reverse().map(s=>{
     const c = contents.find(x=>x.id===s.contentId);
     return { id: s.id, title: c ? c.title : (s.title || 'Sessão de foco'), min: s.durationMin, when: sessionWhen(s), subjectId: (c && c.subjectId) || s.subjectId };
@@ -4888,8 +5359,16 @@ function PerfilScreen(){
         <div className="min-w-0">
           <p className="text-[18px] leading-[24px] font-bold text-sf-text break-words">{user.name}</p>
           {user.email && <p className="text-[14px] leading-[20px] text-sf-muted break-all">{user.email}</p>}
+          {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted m-0">Modo visitante</p>}
         </div>
       </div>
+      {isVisitor && (
+        <section className="mt-5 rounded-2xl p-4" style={{background:'var(--bg-surface)'}} aria-labelledby="vis-h">
+          <h2 id="vis-h" className="text-[16px] leading-[22px] font-semibold text-sf-text m-0">Guarde o que você estudou</h2>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-1 mb-0">Como visitante, seu progresso fica só neste navegador. Entrando com o Google, ele vai junto para a sua conta e você pode criar seus próprios conteúdos.</p>
+          <button type="button" onClick={()=>askAccount('entrar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]">Entrar com Google</button>
+        </section>
+      )}
 
       <SectionTitle className="mt-8">Histórico recente</SectionTitle>
       {recent.length === 0 ? (
@@ -4909,8 +5388,29 @@ function PerfilScreen(){
       )}
 
       <div className="mt-6"><MenuGroup items={menu}/></div>
-      <div className="mt-3"><MenuGroup items={[{Icon:IconLogout, label:'Sair da conta', action:()=>setConfirmOut(true), noChevron:true}]}/></div>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Seus dados ficam salvos neste aparelho. Sair não apaga o que você estudou aqui.</p>
+      {isVisitor ? (
+        <>
+          <div className="mt-3"><MenuGroup items={[
+            {Icon:IconLogout, label:'Sair do modo visitante', action:signOut, noChevron:true},
+            {Icon:IconTrash, label:'Apagar dados de visitante', action:()=>setConfirmClear(true), noChevron:true},
+          ]}/></div>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Sair do modo visitante mantém seu progresso neste navegador por 30 dias. Apagar remove tudo agora.</p>
+        </>
+      ) : (
+        <>
+          <div className="mt-3"><MenuGroup items={[{Icon:IconLogout, label:'Sair da conta', action:()=>setConfirmOut(true), noChevron:true}]}/></div>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Seus dados ficam salvos neste aparelho, separados por conta. Sair não apaga o que você estudou aqui.</p>
+        </>
+      )}
+
+      {confirmClear && (
+        <ModalShell variant="center" onClose={()=>setConfirmClear(false)} labelledBy="clear-title">
+          <p id="clear-title" className="text-[18px] leading-[24px] font-bold text-sf-text text-center">Apagar dados de visitante?</p>
+          <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-2">Módulos concluídos, sessões de foco, Plano e anotações feitos como visitante serão apagados deste navegador. Não dá para desfazer.</p>
+          <button type="button" onClick={clearVisitorData} className="sf-btn sf-btn-danger w-full mt-5 h-12 text-[14px]">Apagar e sair</button>
+          <button type="button" onClick={()=>setConfirmClear(false)} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Cancelar</button>
+        </ModalShell>
+      )}
 
       {confirmOut && (
         <ModalShell variant="center" onClose={()=>setConfirmOut(false)} labelledBy="signout-title">
@@ -6255,7 +6755,7 @@ function SessionDoneBanner(){
 }
 
 function AppShell(){
-  const { view, tab, user, handleAuth, goTab, restoreY } = useApp();
+  const { view, tab, user, goTab, restoreY } = useApp();
   const band = useBand();
   useTheme();   // assina o tema: a troca re-renderiza a árvore para recalcular cores derivadas em JS (sem remontar nada)
   const mainRef = useRef(null);
@@ -6272,9 +6772,6 @@ function AppShell(){
     if(mainRef.current) mainRef.current.focus({preventScroll:true});
   }, [navKey]);
 
-  if(!user){
-    return <LoginScreen onAuth={handleAuth}/>;
-  }
   if(isDeskBand(band)){
     return (
       <div className="sf-desk">
@@ -6286,9 +6783,11 @@ function AppShell(){
           </ErrorBoundary>
         </main>
         <SessionDoneBanner/>
+        <NoticeBanner/>
         <ConfirmEndModal/>
         <FocusScreen/>
         <SubjectSheet/>
+        <AccountSheet/>
       </div>
     );
   }
@@ -6303,15 +6802,24 @@ function AppShell(){
         </main>
         {showsTabBar(view) && <TabBar/>}
         <SessionDoneBanner/>
+        <NoticeBanner/>
         <SessionBar/>
         <ConfirmEndModal/>
         <FocusScreen/>
         <SubjectSheet/>
+        <AccountSheet/>
       </div>
     </div>
   );
 }
-function App(){ return <ThemeProvider><AppProvider><AppShell/></AppProvider></ThemeProvider>; }
+/* Sem conta nem visitante: tela de entrada. Com uma das duas, o app monta no espaço de dados daquela pessoa
+   (a key troca o estado inteiro ao mudar de visitante para conta ou de uma conta para outra). */
+function IdentityGate(){
+  const {space} = useIdentity();
+  if(!space) return <LoginScreen/>;
+  return <AppProvider key={space}><AppShell/></AppProvider>;
+}
+function App(){ return <ThemeProvider><IdentityProvider><IdentityGate/></IdentityProvider></ThemeProvider>; }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
