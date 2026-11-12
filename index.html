@@ -1691,7 +1691,8 @@ function cleanWatchEntry(e){
   if(!e || typeof e !== 'object' || !isValidYouTubeId(e.videoId)) return null;
   const dur = Number(e.dur) > 0 ? Number(e.dur) : 0;
   const segs = Array.isArray(e.segs) ? e.segs.filter(x => Array.isArray(x) && x.length === 2 && Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > x[0] && x[0] >= 0) : [];
-  return {videoId: e.videoId, dur, segs: segs.reduce((acc, [s, t])=> addWatchSeg(acc, s, t), []), updatedAt: Number(e.updatedAt) || 0};
+  const pos = Number(e.pos) > 0 ? Math.round(Number(e.pos)) : 0;   /* onde a pessoa parou (s), para retomar dali */
+  return {videoId: e.videoId, dur, pos, segs: segs.reduce((acc, [s, t])=> addWatchSeg(acc, s, t), []), updatedAt: Number(e.updatedAt) || 0};
 }
 const watchRepo = {
   _cache: null,
@@ -2385,9 +2386,9 @@ function AppProvider({children}){
     if(!st || st === TOPIC_STATUS.COMPLETED) return false;
     const ttype = getTopicType(c, topicIndex);
     if(ttype === MODULE_TYPES.QUIZ) return false;
-    /* Regra da videoaula: só conclui com ≥ 75% do vídeo assistido. Exceção: quando nenhuma videoaula foi encontrada
-       para o tema (opts.noVideo), o módulo pode ser concluído para a trilha não travar. */
-    if(ttype === MODULE_TYPES.VIDEO && !(opts && opts.noVideo) && !videoTopicWatch(c, topicIndex).eligible) return false;
+    /* Videoaula: conclui com ≥ 75% assistido, quando não há vídeo (opts.noVideo) ou quando a pessoa pede pelo botão
+       "Concluir módulo" (opts.manual), por exemplo se já domina o assunto. */
+    if(ttype === MODULE_TYPES.VIDEO && !(opts && (opts.noVideo || opts.manual)) && !videoTopicWatch(c, topicIndex).eligible) return false;
     setContents(prev => applyTopicCompletion(prev, contentId, topicIndex));
     return true;
   };
@@ -6395,8 +6396,18 @@ function ModuleNotes({contentId, topicIndex}){
    O iframe é criado pela API dentro de um nó que o React não controla (o React só vê o contêiner).
    Com `trackKey`, mede os trechos assistidos (ver "Tempo assistido das videoaulas") e salva em sf_watch_progress:
    a cada 4 s durante a reprodução, e sempre que pausa, termina, troca de vídeo ou sai da tela. */
+function fmtClock(sec){ const s = Math.max(0, Math.floor(sec)), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), r = s%60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}` : `${m}:${String(r).padStart(2,'0')}`; }
+/* Retoma do ponto salvo se ele estiver depois dos primeiros 5 s e antes dos últimos 15 s do vídeo. */
+function resumePointFor(entry){
+  if(!entry || !(entry.pos > 5)) return 0;
+  if(entry.dur > 0 && entry.pos > entry.dur - 15) return 0;
+  return Math.floor(entry.pos);
+}
 function YouTubePlayer({video, trackKey, onWatch, onPlay}){
   const boxRef = useRef(null);
+  const playerRef = useRef(null);
+  const [resumeAt, setResumeAt] = useState(0);
   const [status, setStatus] = useState('loading');   // loading | ready | error
   const [errCode, setErrCode] = useState(null);
   const watchRef = useRef(onWatch); watchRef.current = onWatch;
@@ -6408,8 +6419,10 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
     setStatus('loading'); setErrCode(null);
     const tr = {
       playing:false, last:null, lastWall:0, dirty:false, lastSave:0, started:false,
-      entry: trackKey ? (watchRepo.get(trackKey) || {videoId: video.id, dur: Number(video.durationSec) || 0, segs: []}) : null,
+      entry: trackKey ? (watchRepo.get(trackKey) || {videoId: video.id, dur: Number(video.durationSec) || 0, pos: 0, segs: []}) : null,
     };
+    const startAt = resumePointFor(tr.entry);
+    setResumeAt(startAt);
     const emit = ()=>{ if(tr.entry && watchRef.current) watchRef.current({...tr.entry, segs: tr.entry.segs.map(x => [...x])}); };
     const save = (force)=>{
       if(!tr.entry || !tr.dirty) return;
@@ -6430,6 +6443,7 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
         if(dt > 0 && dt <= dw * rate + 0.6){ tr.entry.segs = addWatchSeg(tr.entry.segs, tr.last, t); tr.dirty = true; }
       }
       tr.last = t; tr.lastWall = wall;
+      if(Math.abs((tr.entry.pos || 0) - t) >= 1){ tr.entry.pos = t; tr.dirty = true; }
       emit(); save(false);
     };
     const host = document.createElement('div');
@@ -6440,11 +6454,12 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       if(cancelled) return;
       player = new YT.Player(host, {
         videoId: video.id, width: '100%', height: '100%',
-        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, origin: window.location.origin },
+        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, origin: window.location.origin, ...(startAt ? {start: startAt} : {}) },
         events: {
           onReady: ()=>{
             if(cancelled) return;
             setStatus('ready');
+            playerRef.current = player;
             try{ const iframe = player.getIframe(); iframe.setAttribute('title', `Videoaula: ${video.title || 'vídeo do YouTube'}`); }catch(e){}
             if(tr.entry){ try{ const d = Number(player.getDuration()) || 0; if(d > 0 && Math.abs(d - (tr.entry.dur||0)) > 1){ tr.entry.dur = d; tr.dirty = true; } }catch(e){} emit(); }
           },
@@ -6456,9 +6471,12 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
               try{ tr.last = Number(player.getCurrentTime()) || 0; }catch(err){ tr.last = null; }
               tr.lastWall = performance.now();
               if(!tr.started){ tr.started = true; if(playRef.current) playRef.current(); }
+              setResumeAt(0);
               if(!timer) timer = setInterval(sample, 500);
             } else {
               if(tr.playing) sample();
+              /* terminou: a próxima visita começa do início */
+              if(e.data === S.ENDED && tr.entry){ tr.entry.pos = 0; tr.dirty = true; }
               tr.playing = false; tr.last = null;
               if(timer){ clearInterval(timer); timer = null; }
               save(true);
@@ -6475,8 +6493,10 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       try{ if(tr.playing) sample(); }catch(e){}
       save(true);
       try{ if(player && player.destroy) player.destroy(); }catch(e){}
+      playerRef.current = null;
     };
   }, [video && video.id, trackKey]);
+  const restart = ()=>{ const pl = playerRef.current; try{ if(pl){ pl.seekTo(0, true); pl.playVideo(); } }catch(e){} setResumeAt(0); };
 
   const notEmbeddable = errCode === 101 || errCode === 150;
   return (
@@ -6496,6 +6516,12 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
           </div>
         )}
       </div>
+      {resumeAt > 0 && status !== 'error' && (
+        <p className="mt-2 mb-0 text-[14px] leading-[20px] text-sf-muted flex items-center gap-2 flex-wrap" role="status">
+          <span>Começa de onde você parou: <span className="tnum text-sf-text font-semibold">{fmtClock(resumeAt)}</span></span>
+          <button type="button" onClick={restart} disabled={status !== 'ready'} className="sf-btn sf-btn-ghost h-9 px-2 -ml-1 text-[14px] font-semibold">Assistir do início</button>
+        </p>
+      )}
     </div>
   );
 }
@@ -6509,7 +6535,7 @@ function WatchRuleNote({ratio, done, unknownDuration}){
     <div className="mt-3 rounded-xl px-3 py-2.5 flex items-start gap-2.5" style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
       <span className="text-sf-muted inline-flex mt-0.5 shrink-0" aria-hidden="true"><IconInfo size={16}/></span>
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] leading-[20px] text-sf-muted">O módulo fica concluído quando você assiste a pelo menos 75% do vídeo.</p>
+        <p className="text-[14px] leading-[20px] text-sf-muted">{done ? 'Módulo concluído.' : 'Assista pelo menos 75% do vídeo antes de concluir. Se já domina o assunto, pode concluir antes.'}</p>
         {!done && (
           <div className="mt-2">
             <div className="flex items-center justify-between gap-2">
@@ -6590,17 +6616,17 @@ function VideoModule({content, topic, topicIndex, onComplete}){
       <WatchRuleNote ratio={ratio} done={done} unknownDuration={unknownDur}/>
     </div>
   );
-  /* Botão de conclusão: só aparece com ≥ 75% assistido (ou se o módulo já está concluído). */
+  /* Botão de conclusão: sempre disponível. Com ≥ 75% assistido vira o botão principal. */
   const completeEl = current && (done ? (
     <div className="mt-6">
       <p role="status" className="text-[14px] leading-[20px] font-semibold text-sf-text flex items-center gap-2"><span className="text-sf-success inline-flex" aria-hidden="true"><IconCheck size={16}/></span>Módulo concluído</p>
       <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-secondary mt-3 h-12 text-[14px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Ver todos os módulos</button>
     </div>
-  ) : eligible ? (
-    <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-primary mt-6 h-12 text-[15px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>
+  ) : (
+    <button type="button" onClick={()=>onComplete({manual:true})} className={`sf-btn ${eligible ? 'sf-btn-primary' : 'sf-btn-secondary'} mt-6 h-12 text-[15px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>
       Concluir módulo
     </button>
-  ) : null);
+  ));
   const relatedEl = (title)=> recommended.length > 0 && (
     <section aria-labelledby={`rel-${topicIndex}`}>
       <PanelHead id={`rel-${topicIndex}`}>{title}</PanelHead>
