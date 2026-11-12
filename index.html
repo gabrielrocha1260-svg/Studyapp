@@ -533,6 +533,9 @@
     .sf-desk .sf-subj-grid > li.sf-row-div{ border-bottom:1px solid var(--border); }
   }
   @media (min-width:1440px){ .sf-desk .sf-subj-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  .sf-subj-masonry{ display:flex; gap:12px; align-items:flex-start; }
+  .sf-subj-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  .sf-subj-col > li{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:0 16px; }
   @media (min-width:1280px){ .sf-desk > main{ padding:0 48px 48px; } }
   .sf-sidenav{ position:sticky; top:0; height:100dvh; flex:none; width:240px; display:flex; flex-direction:column; gap:4px; padding:24px 16px;
     background:var(--bar-bg); border-right:1px solid var(--border); z-index:30; }
@@ -617,6 +620,16 @@
   .sf-desk .sf-quizbar{ bottom:0; }
   .sf-enem-tag{ display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:999px; background:var(--brand-tint-2); color:var(--blue-300);
     font-size:12px; line-height:16px; font-weight:600; white-space:nowrap; }
+  .sf-hue-wheel{ background:conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); }
+  .sf-cpick{ border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--bg-surface); padding:12px; }
+  .sf-cpick-area{ position:relative; height:160px; border-radius:10px; cursor:crosshair; touch-action:none;
+    background-image:linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)) !important; background-blend-mode:normal; }
+  .sf-cpick-area:focus-visible{ outline:2px solid var(--blue-300); outline-offset:2px; }
+  .sf-cpick-knob{ position:absolute; width:18px; height:18px; border-radius:999px; transform:translate(-50%,-50%); border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); pointer-events:none; }
+  .sf-cpick-hue{ -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:999px; background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00); outline:none; }
+  .sf-cpick-hue::-webkit-slider-thumb{ -webkit-appearance:none; width:20px; height:20px; border-radius:999px; background:#fff; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); cursor:pointer; }
+  .sf-cpick-hue::-moz-range-thumb{ width:18px; height:18px; border-radius:999px; background:#fff; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); cursor:pointer; }
+  .sf-cpick-hue:focus-visible{ outline:2px solid var(--blue-300); outline-offset:3px; }
   /* Miniatura da videoaula no cartão "Continue de onde parou" */
   .sf-resume-thumb{ position:relative; flex:none; width:112px; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:var(--bg-elevated); }
   .sf-resume-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -1574,7 +1587,7 @@ function contentMatchesQuery(c, words){ return itemMatchesQuery(contentHaystack(
    API — backend local (busca de vídeos e conteúdo gerado por IA)
    ============================================================ */
 const API_BASE_URL = (typeof window !== 'undefined' && (window.STUDY_API_URL || window.STUDYFLOW_API_URL)) || 'https://studyapp-kyi5.onrender.com';
-const API_TIMEOUT_MS = { search: 12000, ai: 45000 };
+const API_TIMEOUT_MS = { search: 12000, ai: 60000 };
 
 class ApiError extends Error{
   constructor(kind, message){ super(message); this.name = 'ApiError'; this.kind = kind; } // network | timeout | http | parse
@@ -1808,7 +1821,35 @@ function videoTopicWatch(content, topicIndex){
 function cleanTopicVideo(v){
   if(!v || !isValidYouTubeId(v.id)) return null;
   return {id: v.id, title: String(v.title || '').slice(0, 200), channel: String(v.channel || '').slice(0, 120),
-          thumbnail: safeImageUrl(v.thumbnail), durationSec: Number(v.durationSec) || 0};
+          thumbnail: safeImageUrl(v.thumbnail), durationSec: Number(v.durationSec) || 0, ...(v.qv ? {qv: Number(v.qv) || 0} : {})};
+}
+/* Versão da busca de videoaulas. 2 = a busca leva a matéria junto com o conteúdo e o módulo. */
+const VIDEO_QUERY_VERSION = 2;
+/* Busca de videoaula com contexto: matéria + conteúdo + módulo, sem palavras repetidas.
+   Ex.: matéria Música, conteúdo Tríades, módulo "A anatomia da tríade" → "Música Tríades anatomia aula".
+   Em matéria criada pela pessoa, o ícone escolhido também dá contexto (ícone Música numa matéria "Harmonia"). */
+const QUERY_STOP = new Set(['a','o','as','os','de','da','do','das','dos','e','em','no','na','nos','nas','um','uma','para','por','com','sobre','ao','aos','à','às','introdução','introducao','fundamentos','revisão','revisao','final','prática','pratica','avaliação','avaliacao','parte','módulo','modulo','que','como','porque','qual','quais']);
+function foldWord(w){ return w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function stemWord(w){ const f = foldWord(w); return f.length > 4 ? f.replace(/s$/,'').replace(/[ae]$/,'') : f; }
+function videoQueryFor(content, topic){
+  const parts = [];
+  const sid = content && content.subjectId;
+  const subj = sid ? subjName(sid) : '';
+  if(subj && subj !== 'Geral') parts.push(subj);
+  const ident = sid ? subjectIdent(sid) : null;
+  if(ident && ident.type === 'icon' && SUBJECT_ICONS[ident.icon] && !['geral'].includes(ident.icon)){
+    const lab = SUBJECT_ICONS[ident.icon].label;
+    if(lab && foldWord(lab) !== foldWord(subj)) parts.push(lab);
+  }
+  parts.push(content && content.title || '', topic && topic.t || '');
+  const seen = new Set(), out = [];
+  parts.join(' ').replace(/[—–:|,.;!?()"“”]/g, ' ').split(/\s+/).forEach(w => {
+    if(!w) return;
+    const k = stemWord(w);
+    if(QUERY_STOP.has(foldWord(w)) || seen.has(k)) return;
+    seen.add(k); out.push(w);
+  });
+  return out.slice(0, 9).join(' ') + ' aula';
 }
 
 /* ============================================================
@@ -1968,7 +2009,7 @@ async function fetchFlashcards({ contentId, title, subject, moduleTitle }){
   }
 }
 
-async function fetchReading({ contentId, title, subject, moduleTitle, learningObjective, topics }){
+async function fetchReading({ contentId, title, subject, moduleTitle, learningObjective, topics, retrySources }){
   { const d = demoModule(contentId, moduleTitle); if(d && d.reading) return { text: d.reading, sources: null }; }
   if(!GEMINI_PROXY_CONFIG.enabled || !GEMINI_PROXY_CONFIG.readingUrl) return null;
   try{
@@ -1976,6 +2017,7 @@ async function fetchReading({ contentId, title, subject, moduleTitle, learningOb
       contentId: contentId || '', title: title || '', subject: subject || '',
       module: moduleTitle || '', objective: learningObjective || '',
       topics: Array.isArray(topics) ? topics.join('|') : '',
+      ...(retrySources ? {retrySources: '1'} : {}),
     }});
     if(!data || typeof data.content !== 'string' || data.content.trim().length < 50) return null;
     /* Fontes: só o que o servidor recebeu do Grounding com Google Search. Sem fontes, o app diz isso (nunca inventa). */
@@ -4086,6 +4128,8 @@ function ExplorarScreen(){
 
   const words = useMemo(()=> queryWords(query), [query]);
   const searching = words.length > 0;
+  const winW = useWinWidth();
+  const nCols = winW >= 1440 ? 3 : (winW >= 1024 ? 2 : 1);
   const groups = useMemo(()=>{
     const ids = Object.keys(SUBJECTS);
     const map = {}; ids.forEach(id => { map[id] = {items:[], suggestions:[]}; });
@@ -4137,12 +4181,20 @@ function ExplorarScreen(){
             <SectionTitle id="h-materias">{searching ? 'Resultados por matéria' : 'Matérias'}</SectionTitle>
             {contents.length > 0 && <button type="button" onClick={()=>openJornada()} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver trilhas</button>}
           </div>
-          <ul className="sf-subj-grid list-none p-0 m-0 mt-1">
-            {groups.map(g => (
-              <SubjectDrawer key={g.id} sid={g.id} items={g.items} suggestions={g.suggestions} searching={searching}
-                onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem}/>
-            ))}
-          </ul>
+          {(()=>{
+            const drawer = (g)=> <SubjectDrawer key={g.id} sid={g.id} items={g.items} suggestions={g.suggestions} searching={searching}
+              onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem}/>;
+            if(nCols < 2) return <ul className="sf-subj-grid list-none p-0 m-0 mt-1">{groups.map(drawer)}</ul>;
+            /* Colunas independentes (alvenaria): abrir uma matéria só empurra a coluna dela, sem deixar vão nas outras.
+               A distribuição é por linha (1ª, 2ª, 3ª coluna...), então a ordem visual continua a mesma da grade. */
+            const cols = Array.from({length:nCols}, ()=>[]);
+            groups.forEach((g, i)=> cols[i % nCols].push(g));
+            return (
+              <div className="sf-subj-masonry mt-3">
+                {cols.map((col, ci)=> <ul key={ci} className="sf-subj-col list-none p-0 m-0" aria-label={ci === 0 ? 'Matérias' : undefined}>{col.map(drawer)}</ul>)}
+              </div>
+            );
+          })()}
           {!searching && (
             <button type="button" onClick={()=>openSubjectSheet({})} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-2 text-[14px] font-semibold inline-flex items-center gap-1.5">
               <IconPlus size={16}/> Nova matéria {lock}
@@ -4536,6 +4588,11 @@ function useBand(){
   return band;
 }
 const isDeskBand = (b)=> b === 'rail' || b === 'wide';
+function useWinWidth(){
+  const [w, setW] = useState(()=> typeof window !== 'undefined' ? window.innerWidth : 390);
+  useEffect(()=>{ const on = ()=> setW(window.innerWidth); window.addEventListener('resize', on); return ()=> window.removeEventListener('resize', on); }, []);
+  return w;
+}
 
 function ConfirmEndModal(){
   const {session, elapsedSec, confirmEnd, setConfirmEnd, confirmEndSession} = useApp();
@@ -4993,7 +5050,7 @@ function PlannerItemSheet({item, date, onClose, onSave, onSaveTask, onDelete, al
                 <FieldLabel htmlFor="pl-date">Data</FieldLabel>
                 <input id="pl-date" type="date" value={dateStr} onChange={e=>setDateStr(e.target.value)} className={INPUT_CLS}/>
               </div>
-            ) : <span/>}
+            ) : null}
             <div className="min-w-0">
               <FieldLabel htmlFor="pl-time" optional>Horário</FieldLabel>
               <input id="pl-time" type="time" value={time} onChange={e=>setTime(e.target.value)} className={INPUT_CLS}/>
@@ -5498,6 +5555,66 @@ function PlannerScreen({initialDate}){
 
 /* Editar/Nova matéria (Figma: "Personalizar matéria"). Folha no celular, diálogo central a partir de 600 px.
    Ícone é o padrão; emoji é opcional e vem do teclado do sistema (o Study não mantém biblioteca de emojis). */
+/* ---------- Seletor de cor personalizada (estilo editor de imagem) ----------
+   Quadro de saturação × brilho, faixa de matiz e campo hexadecimal. Funciona com mouse, toque e teclado (setas). */
+function hexToHsv(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if(!m) return {h:210, s:.6, v:.95};
+  const n = parseInt(m[1], 16), r = (n>>16 & 255)/255, g = (n>>8 & 255)/255, b = (n & 255)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0;
+  if(d){ h = max === r ? ((g-b)/d) % 6 : max === g ? (b-r)/d + 2 : (r-g)/d + 4; h *= 60; if(h < 0) h += 360; }
+  return {h, s: max ? d/max : 0, v: max};
+}
+function hsvToHex({h, s, v}){
+  const c = v*s, x = c*(1 - Math.abs((h/60) % 2 - 1)), m = v - c;
+  const [r,g,b] = h < 60 ? [c,x,0] : h < 120 ? [x,c,0] : h < 180 ? [0,c,x] : h < 240 ? [0,x,c] : h < 300 ? [x,0,c] : [c,0,x];
+  return '#' + [r,g,b].map(t => Math.round((t+m)*255).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function ColorPicker({id, value, onChange}){
+  const [hsv, setHsv] = useState(()=> hexToHsv(value));
+  const [hexText, setHexText] = useState((value || '').toUpperCase());
+  const areaRef = useRef(null);
+  const apply = (next)=>{ setHsv(next); const hx = hsvToHex(next); setHexText(hx); onChange(hx); };
+  const fromPointer = (e)=>{
+    const r = areaRef.current.getBoundingClientRect();
+    const s = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const v = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+    apply({...hsv, s, v});
+  };
+  const onDown = (e)=>{ e.preventDefault(); areaRef.current.setPointerCapture(e.pointerId); fromPointer(e); };
+  const onMove = (e)=>{ if(areaRef.current.hasPointerCapture(e.pointerId)) fromPointer(e); };
+  const onKey = (e)=>{
+    const st = e.shiftKey ? .1 : .02; let {s, v} = hsv;
+    if(e.key === 'ArrowLeft') s -= st; else if(e.key === 'ArrowRight') s += st; else if(e.key === 'ArrowUp') v += st; else if(e.key === 'ArrowDown') v -= st; else return;
+    e.preventDefault(); apply({...hsv, s: Math.min(1, Math.max(0, s)), v: Math.min(1, Math.max(0, v))});
+  };
+  const onHex = (t)=>{
+    const clean = ('#' + t.replace(/[^0-9a-f]/gi, '').slice(0, 6)).toUpperCase();
+    setHexText(clean);
+    if(clean.length === 7){ const nh = hexToHsv(clean); setHsv(nh); onChange(clean); }
+  };
+  const hueHex = hsvToHex({h: hsv.h, s: 1, v: 1});
+  return (
+    <div id={id} className="sf-cpick mt-3" role="group" aria-label="Cor personalizada">
+      <div ref={areaRef} className="sf-cpick-area" style={{background: hueHex}} onPointerDown={onDown} onPointerMove={onMove}
+        tabIndex={0} role="slider" aria-label="Saturação e brilho" aria-valuetext={`Saturação ${Math.round(hsv.s*100)}%, brilho ${Math.round(hsv.v*100)}%`} onKeyDown={onKey}>
+        <span className="sf-cpick-knob" style={{left:`${hsv.s*100}%`, top:`${(1-hsv.v)*100}%`, background: hsvToHex(hsv)}}/>
+      </div>
+      <input type="range" min="0" max="359" value={Math.round(hsv.h)} onChange={e=>apply({...hsv, h: Number(e.target.value)})}
+        className="sf-cpick-hue mt-3" aria-label="Matiz"/>
+      <div className="flex items-center gap-3 mt-3">
+        <span className="w-10 h-10 rounded-xl shrink-0" style={{background: hsvToHex(hsv), border:'1px solid var(--border)'}} aria-hidden="true"/>
+        <label className="flex-1 min-w-0">
+          <span className="sr-only-live">Código da cor (hexadecimal)</span>
+          <input value={hexText} onChange={e=>onHex(e.target.value)} maxLength={7} spellCheck={false} autoComplete="off"
+            className={INPUT_CLS + ' tnum uppercase'} aria-label="Código da cor (hexadecimal)"/>
+        </label>
+      </div>
+      <p className="text-[13px] leading-[18px] text-sf-muted mt-2 mb-0">Arraste no quadro ou digite o código da cor. O Study ajusta o tom para ficar legível nos temas claro e escuro.</p>
+    </div>
+  );
+}
+
 function SubjectSheetForm({sheet}){
   const {closeSubjectSheet, saveSubject, subjectsStore} = useApp();
   const band = useBand();
@@ -5513,6 +5630,7 @@ function SubjectSheetForm({sheet}){
   const [icon, setIcon] = useState(initIdent.type === 'icon' ? initIdent.icon : 'geral');
   const [emoji, setEmoji] = useState(initIdent.type === 'emoji' ? initIdent.emoji : '');
   const [emojiRaw, setEmojiRaw] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [accent, setAccent] = useState(()=>{
     if(editingId && SUBJECTS[editingId]) return SUBJECTS[editingId].accent;
     return CUSTOM_COLORS[Object.keys(subjectsStore.custom || {}).length % CUSTOM_COLORS.length];
@@ -5598,10 +5716,23 @@ function SubjectSheetForm({sheet}){
 
       <p id="subject-color-label" className="text-[15px] leading-[20px] font-semibold text-sf-muted mt-5 mb-2">Cor</p>
       <div className="flex flex-wrap gap-1" role="radiogroup" aria-labelledby="subject-color-label">
+        {(()=>{
+          const custom = !SUBJECT_PALETTE.some(c => c.toLowerCase() === (accent||'').toLowerCase());
+          return (
+            <button type="button" role="radio" aria-checked={custom} aria-expanded={pickerOpen} aria-controls="subject-color-picker"
+              onClick={()=>setPickerOpen(o=>!o)} aria-label="Cor personalizada" title="Cor personalizada"
+              className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer bg-transparent"
+              style={{border: custom || pickerOpen ? '2px solid var(--text-primary)' : '2px solid transparent'}}>
+              <span className="sf-hue-wheel w-6 h-6 rounded-full flex items-center justify-center">
+                {custom && <span className="w-2.5 h-2.5 rounded-full" style={{background:accent, boxShadow:'0 0 0 2px #fff'}}/>}
+              </span>
+            </button>
+          );
+        })()}
         {SUBJECT_PALETTE.map((c,i)=>{
           const on = (accent||'').toLowerCase() === c.toLowerCase();
           return (
-            <button key={c} type="button" role="radio" aria-checked={on} onClick={()=>setAccent(c)} aria-label={`Cor ${i+1}`}
+            <button key={c} type="button" role="radio" aria-checked={on} onClick={()=>{ setAccent(c); setPickerOpen(false); }} aria-label={`Cor ${i+1}`}
               className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer bg-transparent"
               style={{border: on ? '2px solid var(--text-primary)' : '2px solid transparent'}}>
               <span className="w-6 h-6 rounded-full" style={{background:c}}/>
@@ -5609,6 +5740,7 @@ function SubjectSheetForm({sheet}){
           );
         })}
       </div>
+      {pickerOpen && <ColorPicker id="subject-color-picker" value={accent} onChange={setAccent}/>}
 
       <div className={desk ? 'mt-6 flex justify-end gap-3' : 'mt-6'}>
         {desk && <button type="button" onClick={closeSubjectSheet} className="sf-btn sf-btn-ghost h-11 px-4 text-[15px] font-semibold">Cancelar</button>}
@@ -5656,9 +5788,91 @@ function MateriasScreen(){
   );
 }
 
+/* Trilhas · lista: matérias em gavetas; cada conteúdo abre a trilha completa dele. "Voltar" sempre volta à tela anterior. */
+function TrilhasSubjectDrawer({sid, items, defaultOpen, onOpen}){
+  const [open, setOpen] = useDrawerState(`trilhas:${sid}`, defaultOpen);
+  const orphan = sid === ORPHAN_SUBJECT;
+  const name = orphan ? 'Sem matéria' : subjName(sid);
+  const sum = subjectSummary(items);
+  const listId = `trilhas-${sid}`;
+  return (
+    <li className="sf-row-div">
+      <h2 className="m-0">
+        <button type="button" onClick={()=>setOpen(o=>!o)} aria-expanded={open} aria-controls={listId}
+          className="w-full flex items-center gap-3 py-3 min-h-[64px] bg-transparent border-0 text-left cursor-pointer">
+          {orphan ? <span className="sf-subj" aria-hidden="true" style={{width:44, height:44, borderRadius:12}}><IconBook size={20}/></span> : <SubjectTile subjectId={sid}/>}
+          <span className="flex-1 min-w-0">
+            <span className="block text-[17px] leading-[22px] font-semibold text-sf-text truncate">{name}</span>
+            <span className="block text-[14px] leading-[18px] text-sf-muted mt-0.5 tnum">{sum.n} {plural(sum.n, 'trilha', 'trilhas')} · {sum.doneN} {plural(sum.doneN, 'concluída', 'concluídas')}</span>
+          </span>
+          <span className="text-sf-muted shrink-0 inline-flex" aria-hidden="true" style={{transform:`rotate(${open ? 90 : 0}deg)`, transition:'transform var(--dur-base) var(--ease-out)'}}><IconChevronR/></span>
+        </button>
+      </h2>
+      <div className="sf-drawer" data-open={open ? 'true' : 'false'}>
+        <div className="sf-drawer-inner">
+          <ul id={listId} hidden={!open} className="list-none p-0 m-0 pl-[56px] pb-3">
+            {items.map(c => {
+              const p = getContentProgress(c);
+              return (
+                <li key={c.id}>
+                  <button type="button" onClick={()=>onOpen(c.id)} aria-label={`${c.title}. ${p.completed} de ${p.total} módulos. Ver a trilha`}
+                    className="w-full text-left py-3 flex items-center gap-3 bg-transparent border-0 cursor-pointer">
+                    <span className="flex-1 min-w-0" aria-hidden="true">
+                      <span className="sf-ed-content text-sf-text block truncate">{c.title}</span>
+                      <span className="text-[14px] leading-[18px] text-sf-muted block mt-0.5 tnum">{p.total ? `${p.completed} de ${p.total} módulos` : (c.journeyStatus === 'loading' ? 'Montando a trilha' : 'Trilha ainda não montada')}</span>
+                      {p.total > 0 && <SegmentedTrail className="mt-2" size="sm" states={trailStates(c)}/>}
+                    </span>
+                    <span className="text-sf-muted shrink-0" aria-hidden="true"><IconChevronR/></span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+function TrilhasList(){
+  const {contents, closeView, openJornada, lastContentId, goTab} = useApp();
+  const groups = useMemo(()=>{
+    const map = {}, order = [];
+    contents.forEach(c => {
+      const sid = SUBJECTS[c.subjectId] ? c.subjectId : ORPHAN_SUBJECT;
+      if(!map[sid]){ map[sid] = []; order.push(sid); }
+      map[sid].push(c);
+    });
+    const known = Object.keys(SUBJECTS).filter(k => map[k]);
+    return [...known, ...(map[ORPHAN_SUBJECT] ? [ORPHAN_SUBJECT] : [])].map(sid => ({sid, items: map[sid]}));
+  }, [contents]);
+  const last = contents.find(x => x.id === lastContentId);
+  const lastSid = last ? (SUBJECTS[last.subjectId] ? last.subjectId : ORPHAN_SUBJECT) : null;
+  return (
+    <div className="pt-16 px-5 pb-8">
+      <BackButton onClick={closeView}/>
+      <ScreenTitle className="mt-2">Trilhas</ScreenTitle>
+      <p className="text-[15px] leading-[21px] text-sf-muted mt-1 mb-0">Abra uma matéria e escolha o conteúdo para ver a trilha completa.</p>
+      {groups.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState Icon={IconRocket} title="Você ainda não começou nenhuma trilha.">
+            <button type="button" onClick={()=>goTab('estudar')} className="sf-btn sf-btn-primary mt-3 h-11 px-4 text-[14px] font-semibold inline-flex items-center justify-center gap-1.5">
+              <IconSearch size={14}/> Explorar conteúdos
+            </button>
+          </EmptyState>
+        </div>
+      ) : (
+        <ul className="list-none p-0 m-0 mt-4">
+          {groups.map(g => <TrilhasSubjectDrawer key={g.sid} sid={g.sid} items={g.items} defaultOpen={groups.length === 1 || g.sid === lastSid} onOpen={(id)=>openJornada(id)}/>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function JornadaScreen({contentId}){
-  const {contents, closeView, openDetalhe, openModule, completeTopic, lastContentId, goTab} = useApp();
-  const c = contents.find(x=>x.id===contentId) || contents.find(x=>x.id===lastContentId) || pickPriorityContent(contents);
+  const {contents, closeView, openDetalhe, openModule, completeTopic, goTab} = useApp();
+  if(!contentId) return <TrilhasList/>;
+  const c = contents.find(x=>x.id===contentId);
 
   if(!c){
     return (
@@ -5685,10 +5899,10 @@ function JornadaScreen({contentId}){
 
   return (
     <div className="pt-16 px-5 pb-8">
-      <BackButton onClick={()=>openDetalhe(c.id)} label="Voltar ao conteúdo"/>
+      <BackButton onClick={closeView}/>
       <div className="mt-1"><SubjectTag subjectId={c.subjectId}/></div>
-      <h1 className="text-[22px] font-bold text-sf-text mt-2">Suas trilhas</h1>
-      <p className="text-[12px] text-sf-muted mt-1">{c.title} · siga as etapas para dominar este conteúdo</p>
+      <h1 className="sf-ed-title text-sf-text mt-2">{c.title}</h1>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Trilha completa · siga as etapas na ordem</p>
 
       {total === 0 ? (
         <div className="mt-6">
@@ -6562,7 +6776,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const [watch, setWatch] = useState(null);
   const playerTopRef = useRef(null);
 
-  const query = `${content.title} ${topic.t} aula`;
+  const query = videoQueryFor(content, topic);
 
   useEffect(()=>{
     let cancelled = false;
@@ -6571,7 +6785,10 @@ function VideoModule({content, topic, topicIndex, onComplete}){
       if(cancelled) return;
       if(res.status === 'ok'){
         setResults(res.videos);
-        if(!saved) setTopicVideo(content.id, topicIndex, res.videos[0]);
+        /* Vídeo escolhido pela busca antiga (sem a matéria): se ele não aparece entre os resultados da busca nova,
+           provavelmente é de outro assunto (ex.: "tríade" de ortopedia numa aula de música) e é trocado. */
+        const stale = saved && !(saved.qv >= VIDEO_QUERY_VERSION) && !res.videos.some(v => v.id === saved.id);
+        if(!saved || stale) setTopicVideo(content.id, topicIndex, {...res.videos[0], qv: VIDEO_QUERY_VERSION});
         setState('ok');
       } else if(!saved){
         setState(res.status === 'empty' ? 'empty' : 'error');
@@ -6593,7 +6810,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const unknownDur = !(watch && watch.dur > 0);
 
   const chooseVideo = (v)=>{
-    setTopicVideo(content.id, topicIndex, v);
+    setTopicVideo(content.id, topicIndex, {...v, qv: VIDEO_QUERY_VERSION});
     if(playerTopRef.current) playerTopRef.current.scrollIntoView({block:'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
   };
 
@@ -6697,7 +6914,7 @@ function domainOf(uri, title){
   if(title && /^[\w.-]+\.[a-z]{2,}$/i.test(title)) return title.replace(/^www\./,'');
   try{ const h = new URL(uri).hostname.replace(/^www\./,''); return /vertexaisearch|googleusercontent/.test(h) ? (title || 'Fonte') : h; }catch(e){ return title || 'Fonte'; }
 }
-function ReadingSources({sources, ordinal={}}){
+function ReadingSources({sources, ordinal={}, onRetry}){
   const [open, setOpen] = useState(false);
   if(!sources) return null;
   const items = sources.items || [];
@@ -6740,6 +6957,9 @@ function ReadingSources({sources, ordinal={}}){
                   : 'Este texto não usou páginas da web, então não há fontes para conferir. Vale checar datas, números e nomes em outro material.'}
               </p>
             )}
+            {!has && onRetry && (
+              <button type="button" onClick={onRetry} className="sf-btn sf-btn-secondary h-11 px-4 mt-3 text-[14px]">Gerar de novo com pesquisa na web</button>
+            )}
             {cited.length > 0 && (<>
               <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Usadas no texto</h3>
               <ul className="list-none p-0 m-0">{cited.map(row)}</ul>
@@ -6778,11 +6998,13 @@ function ReadingModule({content, topic, topicIndex, onComplete}){
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [retrySrc, setRetrySrc] = useState(false);
 
   useEffect(()=>{
     let cancelled = false;
     setLoading(true); setError(false); setReadingContent(null);
     fetchReading({
+      retrySources: retrySrc,
       contentId: content.id,
       title: content.title,
       subject: subjName(content.subjectId),
@@ -6850,7 +7072,7 @@ function ReadingModule({content, topic, topicIndex, onComplete}){
           {top}
           <div className="mt-6"><ModuleHeader topic={topic}/></div>
           {textEl}
-          <ReadingSources sources={readingSources} ordinal={ordinal}/>
+          <ReadingSources sources={readingSources} ordinal={ordinal} onRetry={()=>{ setRetrySrc(true); setReloadKey(k=>k+1); }}/>
         </article>
         <aside className="sf-col-panel" aria-label="Sobre este módulo">
           {objective && <section aria-labelledby={`obj-${topicIndex}`}><PanelHead id={`obj-${topicIndex}`}>Objetivo</PanelHead><p className="text-[15px] leading-[20px] text-sf-muted m-0">{objective}</p></section>}
@@ -6879,7 +7101,7 @@ function ReadingModule({content, topic, topicIndex, onComplete}){
       )}
       <ModuleHeader topic={topic} showObjective/>
       {textEl}
-      <ReadingSources sources={readingSources} ordinal={ordinal}/>
+      <ReadingSources sources={readingSources} ordinal={ordinal} onRetry={()=>{ setRetrySrc(true); setReloadKey(k=>k+1); }}/>
       <ModuleClosing content={content} topicIndex={topicIndex} onComplete={onComplete}/>
     </article>
   );
@@ -7207,9 +7429,10 @@ function ModuleScreen({contentId, topicIndex}){
     const nextIdx = prog.nextIndex;
     const next = nextIdx >= 0 ? c.topics[nextIdx] : null;
     const NextIcon = next ? MODULE_META[getTopicType(c, nextIdx)].Icon : null;
+    const doneDesk = isDeskBand(band);
     const doneTitle = {video:'Videoaula concluída', reading:'Leitura concluída', flashcards:'Prática concluída', quiz:'Avaliação concluída'}[ttype] || 'Módulo concluído';
     return (
-      <div className="pt-12 px-5 pb-8 flex flex-col min-h-[calc(100dvh-var(--tabbar-h)-80px)]">
+      <div className={`pt-12 px-5 pb-8 flex flex-col ${doneDesk ? '' : 'min-h-[calc(100dvh-var(--tabbar-h)-80px)]'}`}>
         {top}
         <h1 className="sf-ed-title text-sf-text mt-4 flex items-center gap-2.5" tabIndex={-1}>
           <span className="text-sf-success inline-flex" aria-hidden="true"><IconCheck size={22}/></span>{doneTitle}
@@ -7225,11 +7448,14 @@ function ModuleScreen({contentId, topicIndex}){
             </p>
           </div>
         )}
-        <div className="flex-1 min-h-8"/>
-        {next
-          ? <button type="button" onClick={()=>{ closeView(); openModule(c.id, nextIdx); }} className="sf-btn sf-btn-primary w-full h-12 text-[14px]">Continuar módulo {nextIdx+1}</button>
-          : <button type="button" onClick={()=>openDetalhe(c.id)} className="sf-btn sf-btn-primary w-full h-12 text-[14px]">Ver a trilha completa</button>}
-        <button type="button" onClick={()=>openDetalhe(c.id)} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Ver todos os módulos</button>
+        {/* No computador os botões ficam logo abaixo do próximo módulo; no celular, embaixo, perto do polegar. */}
+        {doneDesk ? <div className="h-8"/> : <div className="flex-1 min-h-8"/>}
+        <div className={doneDesk ? 'flex items-center gap-3' : ''}>
+          {next
+            ? <button type="button" onClick={()=>{ closeView(); openModule(c.id, nextIdx); }} className={`sf-btn sf-btn-primary h-12 text-[14px] ${doneDesk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Continuar módulo {nextIdx+1}</button>
+            : <button type="button" onClick={()=>openDetalhe(c.id)} className={`sf-btn sf-btn-primary h-12 text-[14px] ${doneDesk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Ver a trilha completa</button>}
+          <button type="button" onClick={()=>openDetalhe(c.id)} className={`sf-btn sf-btn-ghost h-11 text-[14px] font-semibold ${doneDesk ? 'px-4' : 'w-full mt-2'}`}>Ver todos os módulos</button>
+        </div>
       </div>
     );
   }

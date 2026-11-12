@@ -686,14 +686,14 @@ function cacheGet(key, { allowStale = false } = {}) {
   const hit = cache.get(key);
   if (!hit) return null;
   const age = now() - hit.at;
-  if (age <= CACHE_TTL_MS) return hit.value;
+  if (age <= (hit.ttl || CACHE_TTL_MS)) return hit.value;
   if (allowStale && age <= STALE_TTL_MS) return hit.value;
   if (age > STALE_TTL_MS) cache.delete(key);
   return null;
 }
-function cacheSet(key, value) {
+function cacheSet(key, value, ttl) {
   cache.delete(key); // reinsere no fim (a ordem do Map vira "mais antigo primeiro")
-  cache.set(key, { at: now(), value });
+  cache.set(key, ttl ? { at: now(), value, ttl } : { at: now(), value });
   if (cache.size > CACHE_MAX) {
     const t = now();
     for (const [k, e] of cache) if (t - e.at > STALE_TTL_MS) cache.delete(k);
@@ -809,11 +809,18 @@ function sendAIError(res, err, label, rid) {
   return res.status(status).json(body);
 }
 
-async function handleAIRequest({ label, params, spec, req, res, fallbackSpec = null }) {
+/* Último motivo de falha da pesquisa na web (Grounding), para diagnosticar em /api/health. */
+let lastGroundingIssue = null;
+/* Leitura gerada sem pesquisa (fallback) fica pouco tempo no cache: a próxima visita tenta de novo com fontes. */
+const UNSOURCED_TTL_MS = envInt("UNSOURCED_TTL_MS", 1000 * 60 * 20, 1000);
+const isUnsourced = (d) => !!(d && d.sources && d.sources.status !== "grounded");
+
+async function handleAIRequest({ label, params, spec, req, res, fallbackSpec = null, retrySources = false }) {
   const rid = req.rid;
   const key = cacheKey(label, params);
   const fresh = cacheGet(key);
-  if (fresh) return res.json({ ...fresh, _cached: true });
+  /* "Buscar fontes de novo": ignora o cache só quando a cópia guardada não tem fontes. */
+  if (fresh && !(retrySources && fallbackSpec && isUnsourced(fresh))) return res.json({ ...fresh, _cached: true });
 
   const deadline = now() + AI_TOTAL_BUDGET_MS;
   try {
@@ -825,13 +832,14 @@ async function handleAIRequest({ label, params, spec, req, res, fallbackSpec = n
           /* Sem fontes disponíveis (cota da busca esgotada, ferramenta recusada, modelo fora do ar): gera a leitura sem
              Grounding e o app avisa "sem pesquisa na web". Só a chave inválida interrompe de vez. */
           if (!fallbackSpec || (err.code === "config" && /chave/i.test(err.message))) throw err;
+          lastGroundingIssue = { at: new Date().toISOString(), code: err.code || "erro", message: String(err.message || err).slice(0, 200) };
           warn(label, rid, `sem fontes: ${err.code || err.message}; gerando a leitura sem Grounding`);
           return await generateStructured(label, fallbackSpec, { deadline: Math.max(deadline, now() + 15000), rid });
         }
       }
       finally { release(); }
     });
-    cacheSet(key, data);
+    cacheSet(key, data, fallbackSpec && isUnsourced(data) ? UNSOURCED_TTL_MS : undefined);
     return res.json(data);
   } catch (err) {
     const stale = cacheGet(key, { allowStale: true });
@@ -914,7 +922,10 @@ Regras:
 - Não repita o título do módulo nem o objetivo no início — comece direto no conteúdo.
 - Sem encher linguiça. Cada frase traz informação nova.
 
-${grounded ? `Pesquise na web (Google Search) para confirmar datas, números, nomes e definições antes de escrever, e baseie o texto no que encontrar.
+${grounded ? `PESQUISA OBRIGATÓRIA: antes de escrever, use a ferramenta Google Search. O aluno vai conferir o texto pelas fontes, então tudo precisa ser verificável.
+- Faça buscas que juntem a matéria e o assunto (ex.: matéria "Música" + "tríades" → "tríades acordes teoria musical"), para não trazer páginas de outra área com o mesmo nome.
+- Prefira fontes confiáveis: universidades e institutos (.edu, .edu.br, .ac), órgãos públicos (.gov, .gov.br), enciclopédias e dicionários reconhecidos, museus, editoras e portais educacionais conhecidos, artigos científicos. Evite fóruns, redes sociais, blogs pessoais e páginas de venda.
+- Baseie cada afirmação factual (datas, números, nomes, definições, fórmulas) no que a pesquisa trouxer. Se algo não aparecer em nenhuma fonte, deixe de fora.
 - Não escreva lista de fontes, links, URLs nem "Referências" no texto: o sistema mostra as fontes consultadas separadamente.
 - Não cite autores, livros ou instituições que você não tenha encontrado na pesquisa.
 
@@ -1118,6 +1129,7 @@ app.get("/api/health", (req, res) => {
     cacheSize: cache.size,
     queue: { active: gate.active, waiting: gate.queue.length },
     models,
+    grounding: { enabled: !!genAIGrounded, lastIssue: lastGroundingIssue },
   });
 });
 
@@ -1366,7 +1378,7 @@ app.get("/api/reading", aiLimiter, asyncRoute(async (req, res) => {
   const groundedSpec = {
     prompt: readingPrompt({ title, subject, module, objective, topics, grounded: true }),
     normalize: (raw, grounding) => { const r = normalizeReading(raw); return { ...r, sources: buildSources(grounding, r.content) }; },
-    maxTokens: 3000, temperature: 0.5, timeoutMs: 25000, grounded: true,
+    maxTokens: 3000, temperature: 0.5, timeoutMs: 30000, grounded: true,
   };
   const plainSpec = {
     prompt: readingPrompt({ title, subject, module, objective, topics }),
@@ -1374,7 +1386,8 @@ app.get("/api/reading", aiLimiter, asyncRoute(async (req, res) => {
     maxTokens: 3000, temperature: 0.5, timeoutMs: 20000,
   };
   await handleAIRequest({
-    label: "reading", params: { ...p, v: genAIGrounded ? "fontes-1" : "sem-fontes" }, req, res,
+    label: "reading", params: { ...p, v: genAIGrounded ? "fontes-2" : "sem-fontes" }, req, res,
+    retrySources: req.query.retrySources === "1",
     spec: genAIGrounded ? groundedSpec : plainSpec,
     fallbackSpec: genAIGrounded ? plainSpec : null,
   });
