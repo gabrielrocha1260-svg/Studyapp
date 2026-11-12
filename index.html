@@ -635,6 +635,7 @@
   .sf-cpick-hue::-webkit-slider-thumb{ -webkit-appearance:none; width:20px; height:20px; border-radius:999px; background:#fff; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); cursor:pointer; }
   .sf-cpick-hue::-moz-range-thumb{ width:18px; height:18px; border-radius:999px; background:#fff; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.5); cursor:pointer; }
   .sf-cpick-hue:focus-visible{ outline:2px solid var(--blue-300); outline-offset:3px; }
+  @media (hover:hover){ .sf-btn-trash:hover{ color:var(--error-solid); } }
   /* Miniatura da videoaula no cartão "Continue de onde parou" */
   .sf-resume-thumb{ position:relative; flex:none; width:112px; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:var(--bg-elevated); }
   .sf-resume-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -978,12 +979,15 @@ function migrateSubjectsStore(st){
       idents[id] = (e && e !== DEFAULT_EMOJI) ? {type:'emoji', emoji:e} : {type:'icon', icon:'geral'};
     });
   }
-  return {v:3, emojis, custom, idents, accents};
+  const hidden = Array.isArray(st && st.hidden) ? st.hidden.filter(k => k in BUILTIN_SUBJECTS) : [];   /* matérias padrão que a pessoa excluiu */
+  return {v:3, emojis, custom, idents, accents, hidden};
 }
 function applySubjectsStore(store){
   const st = migrateSubjectsStore(store);
-  Object.keys(SUBJECTS).forEach(k=>{ if(!(k in BUILTIN_SUBJECTS)) delete SUBJECTS[k]; });
+  Object.keys(SUBJECTS).forEach(k=>{ delete SUBJECTS[k]; });
   Object.keys(BUILTIN_SUBJECTS).forEach(k=>{
+    if(st.hidden.includes(k)) return;
+    SUBJECTS[k] = {name:BUILTIN_NAMES[k], accent:BUILTIN_ACCENTS[k], border:`${BUILTIN_ACCENTS[k]}66`, tagBg:'var(--tag-bg)', emoji:BUILTIN_SUBJECTS[k], ident:{type:'icon', icon:BUILTIN_ICONS[k]}};
     const acc = st.accents[k] || BUILTIN_ACCENTS[k];
     Object.assign(SUBJECTS[k], {accent:acc, border:`${acc}66`, ident: st.idents[k] || {type:'icon', icon:BUILTIN_ICONS[k]}});
     SUBJECTS[k].emoji = SUBJECTS[k].ident.type === 'emoji' ? SUBJECTS[k].ident.emoji : (st.emojis[k] || BUILTIN_SUBJECTS[k]);
@@ -2619,6 +2623,18 @@ function AppProvider({children}){
     setSubjectsStore(next);
     return finalId;
   };
+  /* Excluir matéria: apaga os conteúdos dela (com o progresso) e tira a matéria da lista.
+     Matéria criada pela pessoa sai do armazenamento; matéria padrão fica marcada como oculta. */
+  const deleteSubject = (id)=>{
+    if(!id || !SUBJECTS[id]) return;
+    const prev = migrateSubjectsStore(subjectsStore);
+    const next = {...prev, custom:{...prev.custom}, idents:{...prev.idents}, accents:{...prev.accents}, emojis:{...prev.emojis}, hidden:[...prev.hidden]};
+    if(id in BUILTIN_SUBJECTS){ if(!next.hidden.includes(id)) next.hidden.push(id); }
+    else { delete next.custom[id]; delete next.idents[id]; delete next.accents[id]; delete next.emojis[id]; }
+    setContents(cs => cs.filter(c => c.subjectId !== id));
+    applySubjectsStore(next);
+    setSubjectsStore(next);
+  };
   const openSubjectSheet = (opts)=> setSubjectSheet(opts || {});
   const closeSubjectSheet = ()=> setSubjectSheet(null);
 
@@ -2667,7 +2683,7 @@ function AppProvider({children}){
     lastWatchedVideo, openYouTubeVideo, setTopicVideo, noteWatchedVideo, restoreY,
     tasks, toggleTask, addTask, deleteTask,
     planner, savePlannerItem, deletePlannerItem, togglePlannerDone,
-    subjectsStore, saveSubject, subjectSheet, openSubjectSheet: openSubjectSheetGated, closeSubjectSheet,
+    subjectsStore, saveSubject, deleteSubject, subjectSheet, openSubjectSheet: openSubjectSheetGated, closeSubjectSheet,
     addUserSubject: addUserSubjectGated, isUserSubject, discoverableSubjects: CATALOG,
     completeTopic, completeModule, submitModuleQuiz, getModuleProgress, openModule, lastContentId, goToView,
     learningProgress, regenerateJourney,
@@ -4050,7 +4066,7 @@ function contentStateLabel(c){
   return modulesLabel(c);
 }
 function EnemTag(){ return <span className="sf-enem-tag">Cai no ENEM</span>; }
-function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview}){
+function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview, onDelete}){
   const [stored, setStored] = useDrawerState(`materia:${sid}`);
   const open = searching ? true : stored;
   const sum = subjectSummary(items);
@@ -4109,10 +4125,18 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
               </ul>
             )}
             {!orphan && (
-              <button type="button" onClick={()=>onAdd(sid)} aria-label={`Adicionar conteúdo em ${name}`}
-                className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 text-[14px] font-semibold inline-flex items-center gap-1.5">
-                <IconPlus size={16}/> Adicionar conteúdo
-              </button>
+              <div className="flex items-center justify-between gap-2">
+                <button type="button" onClick={()=>onAdd(sid)} aria-label={`Adicionar conteúdo em ${name}`}
+                  className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 text-[14px] font-semibold inline-flex items-center gap-1.5">
+                  <IconPlus size={16}/> Adicionar conteúdo
+                </button>
+                {onDelete && (
+                  <button type="button" onClick={()=>onDelete(sid)} aria-label={`Excluir a matéria ${name}`} title="Excluir matéria"
+                    className="sf-btn sf-btn-ghost sf-btn-trash w-11 h-11 p-0 -mr-2 inline-flex items-center justify-center shrink-0">
+                    <IconTrash size={18}/>
+                  </button>
+                )}
+              </div>
             )}
             {suggestions.length > 0 && (
               <div className="mt-2">
@@ -4141,7 +4165,8 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
 }
 
 function ExplorarScreen(){
-  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects, openDetalhe, openSubjectSheet, subjectsStore, isVisitor} = useApp();
+  const {contents, openCriarConteudo, openJornada, isUserSubject, discoverableSubjects, openDetalhe, openSubjectSheet, subjectsStore, isVisitor, deleteSubject} = useApp();
+  const [deleting, setDeleting] = useState(null);
   const [query,setQuery] = useState('');
   const lock = isVisitor ? <span className="inline-flex text-sf-muted" aria-hidden="true"><IconLock size={13}/></span> : null;
   const [previewItem, setPreviewItem] = useState(null);
@@ -4203,7 +4228,7 @@ function ExplorarScreen(){
           </div>
           {(()=>{
             const drawer = (g)=> <SubjectDrawer key={g.id} sid={g.id} items={g.items} suggestions={g.suggestions} searching={searching}
-              onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem}/>;
+              onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem} onDelete={(sid)=>setDeleting(sid)}/>;
             if(nCols < 2) return <ul className="sf-subj-grid list-none p-0 m-0 mt-1">{groups.map(drawer)}</ul>;
             /* Colunas independentes (alvenaria): abrir uma matéria só empurra a coluna dela, sem deixar vão nas outras.
                A distribuição é por linha (1ª, 2ª, 3ª coluna...), então a ordem visual continua a mesma da grade. */
@@ -4224,6 +4249,20 @@ function ExplorarScreen(){
       )}
 
       {previewItem && <SubjectPreviewModal item={previewItem} onClose={()=>setPreviewItem(null)}/>}
+      {deleting && SUBJECTS[deleting] && (()=>{
+        const n = contents.filter(c => c.subjectId === deleting).length;
+        const nm = subjName(deleting);
+        return (
+          <ModalShell variant="dialog" z={60} onClose={()=>setDeleting(null)} labelledBy="del-subj-title">
+            <p id="del-subj-title" className="text-[18px] leading-[24px] font-bold text-sf-text text-center">Excluir {nm}?</p>
+            <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-2">
+              {n ? `${n} ${plural(n, 'conteúdo', 'conteúdos')} e o progresso ${plural(n, 'dele', 'deles')} também ${plural(n, 'será apagado', 'serão apagados')}. Não dá para desfazer.` : 'A matéria sai da lista. Não dá para desfazer.'}
+            </p>
+            <button type="button" onClick={()=>{ deleteSubject(deleting); setDeleting(null); }} className="sf-btn sf-btn-danger w-full mt-4 h-12 text-[14px]">Excluir matéria</button>
+            <button type="button" onClick={()=>setDeleting(null)} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Cancelar</button>
+          </ModalShell>
+        );
+      })()}
     </div>
   );
 }
@@ -7494,7 +7533,7 @@ function ModuleScreen({contentId, topicIndex}){
         )}
         {/* No computador os botões ficam logo abaixo do próximo módulo; no celular, embaixo, perto do polegar. */}
         {doneDesk ? <div className="h-8"/> : <div className="flex-1 min-h-8"/>}
-        <div className={doneDesk ? 'flex items-center gap-3' : ''}>
+        <div className={doneDesk ? 'flex items-center justify-center gap-3' : ''}>
           {next
             ? <button type="button" onClick={()=>{ closeView(); openModule(c.id, nextIdx); }} className={`sf-btn sf-btn-primary h-12 text-[14px] ${doneDesk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Continuar módulo {nextIdx+1}</button>
             : <button type="button" onClick={()=>openDetalhe(c.id)} className={`sf-btn sf-btn-primary h-12 text-[14px] ${doneDesk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Ver a trilha completa</button>}
