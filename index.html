@@ -441,7 +441,7 @@
   @keyframes ibOpen{ to{ transform:rotateY(0deg); } }
   @keyframes ibPass{ 0%{ opacity:0; transform:rotateY(0deg); } 16%{ opacity:.78; } 70%{ opacity:.55; } 100%{ opacity:0; transform:rotateY(-180deg); } }
   @keyframes ibLeaf{ 0%{ opacity:0; transform:rotateY(-78deg); } 35%{ opacity:1; } 100%{ opacity:1; transform:rotateY(0deg); } }
-  @keyframes ibGlow{ 0%{ opacity:0; transform:scale(.6); } 40%{ opacity:1; } 100%{ opacity:.5; transform:scale(1); } }
+  @keyframes ibGlow{ 0%{ opacity:0; transform:scale(.6); } 40%{ opacity:1; } 100%{ opacity:0; transform:scale(1.15); } }
   @keyframes ibRay{ 0%{ opacity:0; transform:scaleY(.2); } 35%{ opacity:1; } 100%{ opacity:0; transform:scaleY(1); } }
   @keyframes ibRise{ to{ transform:none; } }
   @keyframes ibLetter{ to{ opacity:1; transform:none; filter:none; } }
@@ -611,7 +611,7 @@ const DEV_MODE = false;
 const BRAND_NAME = 'Study';
 const BOOK_L = 'M9 42Q28 35 45 44L45 84Q28 77 9 82Z';   // página esquerda
 const BOOK_R = 'M51 44Q69 35 87 42L87 82Q69 77 51 84Z'; // página de fundo
-const BOOK_F = 'M51 44C55 30 64 18 79 11C76 28 75 48 77 70C67 69 58 73 51 78Z'; // folha em virada
+const BOOK_F = 'M51 44C56 31 64 21 77 15C79 34 77 54 73 71C65 72 57 76 51 82Z'; // folha em virada: presa na lombada, borda livre curva
 function BrandSymbol({size=32, className='', title}){
   const small = size < 24;
   return (
