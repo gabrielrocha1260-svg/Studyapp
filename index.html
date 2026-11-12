@@ -518,9 +518,11 @@
   /* Desktop: navegação lateral + área principal */
   .sf-desk{ display:flex; min-height:100dvh; background:var(--bg-base); }
   .sf-desk > main{ flex:1 1 auto; min-width:0; padding:0 32px 48px; }
-  /* Uma moldura para todas as telas: 1104 px centralizada. Telas de uma coluna ficam alinhadas à esquerda dessa moldura
+  /* Uma moldura para todas as telas: até 1104 px, alinhada à navegação. Telas de uma coluna ficam alinhadas à esquerda dessa moldura
      com largura de leitura (720 px), então o título de todas as abas começa no mesmo ponto. */
-  .sf-desk main .sf-screen-in > *{ width:100%; max-width:1104px; margin-left:auto; margin-right:auto; padding-left:0 !important; padding-right:0 !important; padding-top:40px !important; }
+  .sf-desk main .sf-screen-in > *{ width:100%; max-width:1104px; margin-left:0; margin-right:auto; padding-left:0 !important; padding-right:0 !important; padding-top:40px !important; }
+  /* Telas largas: a moldura fica presa à navegação (não flutua no meio da tela) e cresce até 1280 px. */
+  @media (min-width:1680px){ .sf-desk main .sf-screen-in > *{ max-width:1280px; } .sf-desk .sf-cols > .sf-col-panel{ flex-basis:340px; width:340px; } }
   .sf-desk main .sf-screen-in > :not(.sf-wide) > *{ max-width:720px; }
   /* Explorar no computador: matérias em grade de cartões (as gavetas continuam funcionando) */
   @media (min-width:1024px){
