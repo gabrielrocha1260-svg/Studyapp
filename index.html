@@ -419,7 +419,9 @@
   .sf-intro.is-leaving .sf-intro-stage{ transform:scale(.985); transition:transform .38s var(--ease-out); }
   .sf-intro-stage{ --bk:clamp(112px, 11vw, 168px); position:relative; display:flex; flex-direction:column; align-items:center; gap:calc(var(--bk) * .125); transform:translateY(calc(var(--bk) * .36));
     animation:ibRise .75s cubic-bezier(.22,1,.36,1) 2s forwards; }
-  .sf-intro-book{ position:relative; width:var(--bk); height:var(--bk); perspective:calc(var(--bk) * 4); transform-style:preserve-3d; }
+  /* sem preserve-3d de propósito: cada camada é projetada sozinha e pintada na ordem do DOM.
+     Em um contexto 3D compartilhado, folha e página de fundo ficam no mesmo plano (z = 0) no fim e piscam (z-fighting). */
+  .sf-intro-book{ position:relative; width:var(--bk); height:var(--bk); perspective:calc(var(--bk) * 4); isolation:isolate; }
   .ib{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; backface-visibility:visible; will-change:transform, opacity; }
   .ib path{ stroke-linejoin:round; }
   .ib-back{ opacity:0; animation:ibIn .45s var(--ease-out) .05s forwards; }
@@ -664,9 +666,10 @@ function BrandIntro({onDone}){
         <div className="sf-intro-book">
           <span className="sf-intro-glow"/>
           <span className="sf-intro-ray"/>
+          {/* ordem de pintura = ordem física: fundo, capa, páginas que passam por cima, folha final */}
           {layer('ib-back', BOOK_R, 'sf-symbol-r')}
-          {[0,1,2].map(i => <React.Fragment key={i}>{layer('ib-pass', BOOK_R, '', {'--i': i})}</React.Fragment>)}
           {layer('ib-cover', BOOK_L, 'sf-symbol-l')}
+          {[0,1,2].map(i => <React.Fragment key={i}>{layer('ib-pass', BOOK_R, '', {'--i': i})}</React.Fragment>)}
           {layer('ib-leaf', BOOK_F, 'sf-symbol-f')}
         </div>
         <span className="sf-intro-word">{BRAND_NAME.split('').map((ch, i) => <span key={i} style={{'--i': i}}>{ch}</span>)}</span>
