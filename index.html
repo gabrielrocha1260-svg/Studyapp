@@ -521,7 +521,10 @@
   /* Uma moldura para todas as telas: 1104 px centralizada. Telas de uma coluna ficam alinhadas à esquerda dessa moldura
      com largura de leitura (720 px), então o título de todas as abas começa no mesmo ponto. */
   .sf-desk main .sf-screen-in > *{ width:100%; max-width:1104px; margin-left:auto; margin-right:auto; padding-left:0 !important; padding-right:0 !important; padding-top:40px !important; }
-  .sf-desk main .sf-screen-in > :not(.sf-wide) > *{ max-width:720px; }
+  /* Telas de uma coluna: medida de leitura (720 px) no centro da área de conteúdo */
+  .sf-desk main .sf-screen-in > :not(.sf-wide){ max-width:720px; }
+  /* Telas com painel ocupam a largura toda: a coluna principal fica no centro e o painel encosta na borda direita */
+  .sf-desk main .sf-screen-in > .sf-full{ max-width:none; }
   /* Explorar no computador: matérias em grade de cartões (as gavetas continuam funcionando) */
   @media (min-width:1024px){
     .sf-desk .sf-subj-search{ max-width:560px; }
@@ -548,7 +551,12 @@
   .sf-sidenav-item{ display:flex; align-items:center; gap:12px; min-height:44px; padding:0 12px; border-radius:var(--radius-md); border:0; background:transparent;
     color:var(--text-secondary); font-family:inherit; font-size:15px; line-height:20px; font-weight:600; cursor:pointer; text-align:left;
     transition:background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
-  .sf-sidenav[data-compact="true"] .sf-sidenav-item{ flex-direction:column; justify-content:center; gap:4px; min-height:56px; padding:6px 0; font-size:13px; line-height:16px; font-weight:500; text-align:center; }
+  .sf-sidenav[data-compact="true"] .sf-sidenav-item{ justify-content:center; min-height:48px; padding:0; }
+  .sf-sidenav[data-compact="true"] .sf-sidenav-item > span{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .sf-sidenav{ transition:width var(--dur-base) var(--ease-out), padding var(--dur-base) var(--ease-out); }
+  .sf-sidenav-brand{ width:100%; }
+  @media (hover:hover){ .sf-sidenav-brand:hover{ background:var(--bg-elevated); } }
+  .sf-sidenav-brand:focus-visible{ outline:2px solid var(--blue-300); outline-offset:2px; }
   .sf-sidenav-item[aria-current="page"]{ background:var(--brand-tint-2); color:var(--blue-300); }
   @media (hover:hover){ .sf-sidenav-item:hover{ color:var(--text-primary); background:var(--bg-elevated); } .sf-sidenav-item[aria-current="page"]:hover{ color:var(--blue-300); background:var(--brand-tint-2); } }
   .sf-sidenav-session{ margin-top:auto; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--bg-surface); padding:12px; }
@@ -563,7 +571,24 @@
     .sf-cols > .sf-col-main{ flex:1 1 var(--main-col,640px); min-width:520px; max-width:var(--main-col,none); }
     .sf-cols > .sf-col-panel{ flex:0 0 300px; width:300px; display:flex; flex-direction:column; gap:40px; }
   }
-  @media (min-width:1280px){ .sf-cols > .sf-col-panel{ flex-basis:320px; width:320px; } }
+  @media (min-width:1280px){ .sf-cols > .sf-col-panel{ flex-basis:320px; width:320px; } .sf-desk{ --panel-w:320px; } }
+  /* Coluna principal centralizada + painel na borda direita (grade de 3 trilhas: a da esquerda espelha a do painel
+     enquanto há espaço; quando falta, ela encolhe primeiro e a coluna principal desliza para a esquerda). */
+  @media (min-width:1024px){
+    .sf-desk .sf-cols, .sf-desk .sf-split{ display:grid; gap:0; align-items:start;
+      grid-template-columns:minmax(0,1fr) minmax(min(var(--main-min,520px),100%), var(--main-col,760px)) minmax(calc(var(--panel-w,300px) + var(--cols-gap,48px)),1fr); }
+    .sf-desk .sf-cols > .sf-col-main{ grid-column:2; min-width:0; max-width:none; }
+    .sf-desk .sf-cols > .sf-col-panel{ grid-column:3; justify-self:end; width:var(--panel-w,300px); }
+    .sf-desk .sf-split > .sf-cols{ display:contents; }
+    .sf-desk .sf-split > :not(.sf-cols){ grid-column:2; grid-row:1; min-width:0; }
+    .sf-desk .sf-split .sf-col-main{ grid-row:2; margin-top:var(--split-gap,32px); }
+    .sf-desk .sf-split .sf-col-panel{ grid-row:1 / span 2; }
+    /* Menu aberto num notebook estreito: não cabe painel ao lado, então tudo vira uma coluna central */
+    .sf-desk[data-tight="true"] .sf-cols, .sf-desk[data-tight="true"] .sf-split{ display:flex; flex-direction:column; gap:40px; max-width:720px; margin-left:auto; margin-right:auto; }
+    .sf-desk[data-tight="true"] .sf-split{ gap:0; }
+    .sf-desk[data-tight="true"] .sf-split > .sf-cols{ display:flex; margin:0; }
+    .sf-desk[data-tight="true"] .sf-cols > .sf-col-panel{ width:100%; }
+  }
   /* Diálogo central (≥600 px): a folha do celular abre no centro */
   @media (min-width:600px){
     .sf-modal-wrap[data-variant="sheet"]{ align-items:center !important; }
@@ -590,6 +615,14 @@
   /* Auditoria v3: modo foco centralizado em telas largas; contador da avaliação sem barra de abas no desktop */
   @media (min-width:600px){ .sf-focus-inner{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; } }
   .sf-desk .sf-quizbar{ bottom:0; }
+  .sf-enem-tag{ display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:999px; background:var(--brand-tint-2); color:var(--blue-300);
+    font-size:12px; line-height:16px; font-weight:600; white-space:nowrap; }
+  /* Miniatura da videoaula no cartão "Continue de onde parou" */
+  .sf-resume-thumb{ position:relative; flex:none; width:112px; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:var(--bg-elevated); }
+  .sf-resume-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .sf-resume-play{ position:absolute; left:6px; bottom:6px; width:24px; height:24px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,12,22,.78); color:#fff; }
+  @media (min-width:1024px){ .sf-resume-thumb{ width:144px; } }
 </style>
 </head>
 <body>
@@ -859,7 +892,8 @@ const IconTrash     = ({size=16,...p}) => <S size={size} {...p}><polyline points
    DATA
    ============================================================ */
 const DEFAULT_EMOJI = '📚';
-const BUILTIN_SUBJECTS = { matematica:'📐', fisica:'⚛️', historia:'🏛️', ingles:'📘' };   /* emojis antigos das matérias padrão (usados só para migrar) */
+const BUILTIN_SUBJECTS = { matematica:'📐', portugues:'📝', redacao:'✍️', literatura:'📖', fisica:'⚛️', quimica:'🧪', biologia:'🌿',
+  historia:'🏛️', geografia:'🌎', filosofia:'💡', sociologia:'👥', ingles:'📘', espanhol:'📙' };   /* emojis antigos das matérias padrão (usados só para migrar) */   /* emojis antigos das matérias padrão (usados só para migrar) */
 /* Fase 3: paleta das matérias = variáveis subject/1–10 do Figma (escuro). No tema claro, readableOn() escurece a cor até ter contraste. */
 const SUBJECT_PALETTE = ['#60A5FA','#F59E0B','#10B981','#F36E6E','#A581F8','#EE5EA5','#14B8A6','#F97316','#84CC16','#06B6D4'];
 const CUSTOM_COLORS = ['#A581F8','#EE5EA5','#14B8A6','#F97316','#84CC16','#06B6D4','#60A5FA','#F59E0B','#10B981','#F36E6E'];
@@ -880,23 +914,29 @@ const SUBJECT_ICONS = {
   economia:{label:'Economia', d:'<path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>'},
   filosofia:{label:'Filosofia', d:'<path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.1 14c.2-1 .7-1.7 1.4-2.5A4.7 4.7 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.8.8 1.3 1.5 1.4 2.5"/>'},
   saude:{label:'Saúde', d:'<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/><path d="M3.5 12h5l1.5-3 3 6 1.5-3h6"/>'},
+  portugues:{label:'Português', d:'<path d="M3 19l5-13 5 13"/><path d="M5 14.5h6"/><circle cx="17.5" cy="16" r="3"/><path d="M20.5 13v6"/>'},
+  sociologia:{label:'Sociologia', d:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 20a6.5 6.5 0 0 0-3-5.6"/>'},
   geral:{label:'Geral', d:'<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/><path d="M22 10v6"/>'},
 };
-const BUILTIN_ICONS = { matematica:'matematica', fisica:'fisica', historia:'historia', ingles:'idiomas' };
-const BUILTIN_ACCENTS = { matematica:'#A581F8', fisica:'#06B6D4', historia:'#F97316', ingles:'#EE5EA5' };   /* Figma: subject/5, 10, 8, 6 */
-const SUBJECTS = {
-  matematica:{name:'MATEMÁTICA', accent:'#A581F8', border:'rgba(165,129,248,0.4)', tagBg:'var(--tag-bg)', emoji:'📐', ident:{type:'icon', icon:'matematica'}},
-  fisica:{name:'FÍSICA', accent:'#06B6D4', border:'rgba(6,182,212,0.4)', tagBg:'var(--tag-bg)', emoji:'⚛️', ident:{type:'icon', icon:'fisica'}},
-  historia:{name:'HISTÓRIA', accent:'#F97316', border:'rgba(249,115,22,0.4)', tagBg:'var(--tag-bg)', emoji:'🏛️', ident:{type:'icon', icon:'historia'}},
-  ingles:{name:'INGLÊS', accent:'#EE5EA5', border:'rgba(238,94,165,0.4)', tagBg:'var(--tag-bg)', emoji:'📘', ident:{type:'icon', icon:'idiomas'}},
-};
+const BUILTIN_ICONS = { matematica:'matematica', portugues:'portugues', redacao:'escrita', literatura:'leitura', fisica:'fisica', quimica:'quimica',
+  biologia:'biologia', historia:'historia', geografia:'geografia', filosofia:'filosofia', sociologia:'sociologia', ingles:'idiomas', espanhol:'idiomas' };
+/* Cores da paleta subject/1–10 do Figma. As quatro primeiras matérias mantêm as cores que já tinham. */
+const BUILTIN_ACCENTS = { matematica:'#A581F8', portugues:'#60A5FA', redacao:'#F59E0B', literatura:'#F36E6E', fisica:'#06B6D4', quimica:'#10B981',
+  biologia:'#84CC16', historia:'#F97316', geografia:'#14B8A6', filosofia:'#A581F8', sociologia:'#EE5EA5', ingles:'#EE5EA5', espanhol:'#F59E0B' };
+/* Ordem das áreas do ENEM: Matemática, Linguagens, Natureza, Humanas e línguas estrangeiras. */
+const BUILTIN_NAMES = { matematica:'MATEMÁTICA', portugues:'PORTUGUÊS', redacao:'REDAÇÃO', literatura:'LITERATURA', fisica:'FÍSICA', quimica:'QUÍMICA',
+  biologia:'BIOLOGIA', historia:'HISTÓRIA', geografia:'GEOGRAFIA', filosofia:'FILOSOFIA', sociologia:'SOCIOLOGIA', ingles:'INGLÊS', espanhol:'ESPANHOL' };
+const SUBJECTS = {};
+Object.keys(BUILTIN_SUBJECTS).forEach(k=>{
+  SUBJECTS[k] = {name:BUILTIN_NAMES[k], accent:BUILTIN_ACCENTS[k], border:`${BUILTIN_ACCENTS[k]}66`, tagBg:'var(--tag-bg)', emoji:BUILTIN_SUBJECTS[k], ident:{type:'icon', icon:BUILTIN_ICONS[k]}};
+});
 
 const CATEGORY_MAP = {
   matematica: 'Matemática',
   fisica: 'Ciências', quimica: 'Ciências', biologia: 'Ciências',
   historia: 'Humanas', geografia: 'Humanas', filosofia: 'Humanas', sociologia: 'Humanas',
   ingles: 'Idiomas', espanhol: 'Idiomas', frances: 'Idiomas', alemao: 'Idiomas',
-  portugues: 'Linguagens', literatura: 'Literatura',
+  portugues: 'Linguagens', literatura: 'Literatura', redacao: 'Linguagens',
   programacao: 'Tecnologia', tecnologia: 'Tecnologia',
   economia: 'Economia',
 };
@@ -1023,8 +1063,159 @@ const DISCOVERABLE_SUBJECTS = [
     topics:[{t:'Phrasal verbs básicos',done:false},{t:'Separáveis e inseparáveis',done:false},{t:'Quando usar cada um',done:false}]},
 ];
 
-const CATALOG = [...SEED_CONTENTS, ...DISCOVERABLE_SUBJECTS].map(item => ({
+/* Temas que mais caem no ENEM, por matéria (levantamento de nov/2026 em Estratégia Vestibulares, Toda Matéria, Aprova Total e SAS).
+   Abertos a todos, inclusive visitantes: a trilha de cada tema é a mesma para todo mundo e fica guardada no servidor. */
+const ENEM_CATALOG = [
+  {id:'enem-matematica-razao-proporcao', title:"Razão, proporção e regra de três", subjectId:'matematica', estMinutes:15, enem:true, desc:"O assunto que mais aparece na prova: escalas, grandezas proporcionais e regra de três simples e composta.",
+    topics:[{t:"Razão e proporção"},{t:"Grandezas diretas e inversas"},{t:"Regra de três simples"},{t:"Regra de três composta e escalas"}]},
+  {id:'enem-matematica-porcentagem-juros', title:"Porcentagem e juros", subjectId:'matematica', estMinutes:15, enem:true, desc:"Aumentos, descontos, juros simples e compostos com situações de compra, salário e financiamento.",
+    topics:[{t:"Porcentagem no dia a dia"},{t:"Aumentos e descontos sucessivos"},{t:"Juros simples"},{t:"Juros compostos"}]},
+  {id:'enem-matematica-estatistica', title:"Estatística", subjectId:'matematica', estMinutes:15, enem:true, desc:"Média, moda, mediana e leitura de gráficos e tabelas, do jeito que o ENEM cobra.",
+    topics:[{t:"Média, moda e mediana"},{t:"Leitura de gráficos e tabelas"},{t:"Desvio padrão e dispersão"}]},
+  {id:'enem-matematica-geometria-plana', title:"Geometria plana", subjectId:'matematica', estMinutes:15, enem:true, desc:"Áreas, perímetros, semelhança de triângulos e Pitágoras aplicados a plantas e terrenos.",
+    topics:[{t:"Áreas e perímetros"},{t:"Semelhança de triângulos"},{t:"Teorema de Pitágoras"},{t:"Circunferência e círculo"}]},
+  {id:'enem-matematica-geometria-espacial', title:"Geometria espacial", subjectId:'matematica', estMinutes:15, enem:true, desc:"Volume e área de prismas, cilindros, cones e esferas em embalagens e reservatórios.",
+    topics:[{t:"Prismas e cilindros"},{t:"Pirâmides e cones"},{t:"Esfera"},{t:"Planificações e vistas"}]},
+  {id:'enem-matematica-probabilidade-combinatoria', title:"Probabilidade e análise combinatória", subjectId:'matematica', estMinutes:15, enem:true, desc:"Princípio da contagem, permutação, combinação e cálculo de chances.",
+    topics:[{t:"Princípio fundamental da contagem"},{t:"Permutação e arranjo"},{t:"Combinação"},{t:"Probabilidade"}]},
+  {id:'enem-matematica-funcoes', title:"Funções", subjectId:'matematica', estMinutes:15, enem:true, desc:"Função afim, quadrática e exponencial lidas em gráficos e situações reais.",
+    topics:[{t:"O que é uma função"},{t:"Função afim"},{t:"Função quadrática"},{t:"Função exponencial e logaritmo"}]},
+  {id:'enem-portugues-interpretacao-texto', title:"Interpretação de texto", subjectId:'portugues', estMinutes:15, enem:true, desc:"Tema, tese, argumentos e informação implícita, a base de quase todas as questões de Linguagens.",
+    topics:[{t:"Tema, tese e argumentos"},{t:"Inferência e informação implícita"},{t:"Intertextualidade"},{t:"Charges, tirinhas e infográficos"}]},
+  {id:'enem-portugues-generos-textuais', title:"Gêneros textuais", subjectId:'portugues', estMinutes:15, enem:true, desc:"Como reconhecer o gênero, o propósito e o público de um texto.",
+    topics:[{t:"Tipos e gêneros textuais"},{t:"Gêneros jornalísticos e de opinião"},{t:"Gêneros digitais"},{t:"Propósito e público"}]},
+  {id:'enem-portugues-funcoes-linguagem', title:"Funções da linguagem", subjectId:'portugues', estMinutes:15, enem:true, desc:"Referencial, emotiva, apelativa, fática, metalinguística e poética em anúncios, poemas e notícias.",
+    topics:[{t:"Elementos da comunicação"},{t:"Referencial, emotiva e apelativa"},{t:"Fática, metalinguística e poética"},{t:"Funções em anúncios e poemas"}]},
+  {id:'enem-portugues-variacao-linguistica', title:"Variação linguística", subjectId:'portugues', estMinutes:15, enem:true, desc:"Norma-padrão, variedades regionais e sociais e preconceito linguístico.",
+    topics:[{t:"Norma-padrão e variedades"},{t:"Variação regional e social"},{t:"Registro formal e informal"},{t:"Preconceito linguístico"}]},
+  {id:'enem-portugues-figuras-linguagem', title:"Figuras de linguagem", subjectId:'portugues', estMinutes:15, enem:true, desc:"Metáfora, metonímia, ironia, antítese e outras figuras que mudam o sentido do texto.",
+    topics:[{t:"Metáfora e comparação"},{t:"Metonímia e hipérbole"},{t:"Ironia, antítese e paradoxo"},{t:"Figuras sonoras"}]},
+  {id:'enem-portugues-gramatica-texto', title:"Gramática no texto", subjectId:'portugues', estMinutes:15, enem:true, desc:"Conectivos, pontuação, concordância e retomadas cobrados dentro da leitura.",
+    topics:[{t:"Conectivos e coesão"},{t:"Pontuação e sentido"},{t:"Concordância e regência no uso"},{t:"Pronomes e retomadas"}]},
+  {id:'enem-redacao-estrutura-dissertativa', title:"Estrutura do texto dissertativo-argumentativo", subjectId:'redacao', estMinutes:15, enem:true, desc:"Introdução com tese, dois parágrafos de desenvolvimento e conclusão com proposta.",
+    topics:[{t:"Introdução e tese"},{t:"Parágrafos de desenvolvimento"},{t:"Conclusão"}]},
+  {id:'enem-redacao-cinco-competencias', title:"As cinco competências da redação", subjectId:'redacao', estMinutes:15, enem:true, desc:"O que cada competência avalia e como chegar perto dos 200 pontos em cada uma.",
+    topics:[{t:"C1 · Norma-padrão"},{t:"C2 · Tema e repertório"},{t:"C3 · Argumentação"},{t:"C4 · Coesão"},{t:"C5 · Proposta de intervenção"}]},
+  {id:'enem-redacao-proposta-intervencao', title:"Proposta de intervenção", subjectId:'redacao', estMinutes:15, enem:true, desc:"Agente, ação, meio, efeito e detalhamento, respeitando os direitos humanos.",
+    topics:[{t:"Os cinco elementos"},{t:"Detalhamento que conta ponto"},{t:"Direitos humanos na proposta"}]},
+  {id:'enem-redacao-repertorio', title:"Repertório sociocultural", subjectId:'redacao', estMinutes:15, enem:true, desc:"Como usar leis, dados, livros e filmes de forma pertinente, sem decorar frases prontas.",
+    topics:[{t:"O que conta como repertório"},{t:"Repertório legitimado e produtivo"},{t:"Como encaixar no parágrafo"}]},
+  {id:'enem-redacao-coesao-coerencia', title:"Coesão e coerência", subjectId:'redacao', estMinutes:15, enem:true, desc:"Conectivos entre e dentro dos parágrafos, retomadas e progressão das ideias.",
+    topics:[{t:"Conectivos entre parágrafos"},{t:"Retomadas e referência"},{t:"Progressão sem repetição"}]},
+  {id:'enem-redacao-leitura-tema', title:"Leitura do tema e dos textos motivadores", subjectId:'redacao', estMinutes:15, enem:true, desc:"Recorte temático, tangenciamento e fuga ao tema.",
+    topics:[{t:"Recorte do tema"},{t:"Textos motivadores"},{t:"Tangenciar ou fugir do tema"}]},
+  {id:'enem-literatura-modernismo', title:"Modernismo brasileiro", subjectId:'literatura', estMinutes:15, enem:true, desc:"Semana de 22, primeira fase, Geração de 30 e Geração de 45.",
+    topics:[{t:"Semana de Arte Moderna"},{t:"Primeira fase modernista"},{t:"Geração de 30 e o romance regional"},{t:"Geração de 45"}]},
+  {id:'enem-literatura-contemporanea', title:"Literatura contemporânea", subjectId:'literatura', estMinutes:15, enem:true, desc:"Prosa e poesia brasileiras recentes, poesia marginal e novas vozes.",
+    topics:[{t:"Poesia marginal"},{t:"Prosa contemporânea"},{t:"Novas vozes da literatura brasileira"}]},
+  {id:'enem-literatura-romantismo', title:"Romantismo", subjectId:'literatura', estMinutes:15, enem:true, desc:"Indianismo, ultrarromantismo, poesia social e o romance urbano e regional.",
+    topics:[{t:"Indianismo"},{t:"Ultrarromantismo"},{t:"Condoreirismo"},{t:"Romance urbano e regional"}]},
+  {id:'enem-literatura-realismo-naturalismo', title:"Realismo e Naturalismo", subjectId:'literatura', estMinutes:15, enem:true, desc:"Machado de Assis, Aluísio Azevedo e a crítica à sociedade do século XIX.",
+    topics:[{t:"Realismo e Machado de Assis"},{t:"Naturalismo"},{t:"Parnasianismo"}]},
+  {id:'enem-literatura-pre-modernismo', title:"Pré-Modernismo", subjectId:'literatura', estMinutes:15, enem:true, desc:"Euclides da Cunha, Lima Barreto e Monteiro Lobato retratando o Brasil real.",
+    topics:[{t:"Contexto do Pré-Modernismo"},{t:"Euclides da Cunha e Os Sertões"},{t:"Lima Barreto e Monteiro Lobato"}]},
+  {id:'enem-literatura-generos-literarios', title:"Gêneros literários e leitura de poemas", subjectId:'literatura', estMinutes:15, enem:true, desc:"Lírico, épico e dramático; verso, rima, métrica e eu lírico.",
+    topics:[{t:"Lírico, épico e dramático"},{t:"Verso, rima e métrica"},{t:"Eu lírico e sentido do poema"}]},
+  {id:'enem-fisica-eletrodinamica', title:"Eletrodinâmica", subjectId:'fisica', estMinutes:15, enem:true, desc:"Corrente, resistência, potência e consumo de energia em aparelhos de casa.",
+    topics:[{t:"Corrente e tensão"},{t:"Leis de Ohm"},{t:"Potência e consumo"},{t:"Circuitos em série e paralelo"}]},
+  {id:'enem-fisica-ondulatoria', title:"Ondulatória", subjectId:'fisica', estMinutes:15, enem:true, desc:"Ondas, som, fenômenos ondulatórios e o espectro eletromagnético.",
+    topics:[{t:"O que é uma onda"},{t:"Som e acústica"},{t:"Reflexão, refração e difração"},{t:"Ondas eletromagnéticas"}]},
+  {id:'enem-fisica-energia-trabalho', title:"Energia, trabalho e potência", subjectId:'fisica', estMinutes:15, enem:true, desc:"Conservação da energia mecânica e transformações de energia em usinas e máquinas.",
+    topics:[{t:"Trabalho de uma força"},{t:"Energia cinética e potencial"},{t:"Conservação da energia"},{t:"Potência e rendimento"}]},
+  {id:'enem-fisica-optica', title:"Óptica", subjectId:'fisica', estMinutes:15, enem:true, desc:"Reflexão, espelhos, refração, lentes e o olho humano.",
+    topics:[{t:"Princípios da óptica"},{t:"Espelhos planos e esféricos"},{t:"Refração"},{t:"Lentes e visão"}]},
+  {id:'enem-quimica-estequiometria', title:"Estequiometria", subjectId:'quimica', estMinutes:15, enem:true, desc:"Mol, massa molar e cálculo de quantidades em reações.",
+    topics:[{t:"Mol e massa molar"},{t:"Balanceamento"},{t:"Cálculo estequiométrico"},{t:"Rendimento e pureza"}]},
+  {id:'enem-quimica-solucoes', title:"Soluções e concentração", subjectId:'quimica', estMinutes:15, enem:true, desc:"Concentração comum, molaridade, diluição e mistura de soluções.",
+    topics:[{t:"Concentração comum e molaridade"},{t:"Diluição"},{t:"Mistura de soluções"}]},
+  {id:'enem-quimica-organica', title:"Química orgânica", subjectId:'quimica', estMinutes:15, enem:true, desc:"Cadeias carbônicas, funções orgânicas, isomeria e reações.",
+    topics:[{t:"Cadeias carbônicas"},{t:"Funções orgânicas"},{t:"Isomeria"},{t:"Reações orgânicas"}]},
+  {id:'enem-quimica-eletroquimica', title:"Eletroquímica", subjectId:'quimica', estMinutes:15, enem:true, desc:"Oxirredução, pilhas, baterias e eletrólise.",
+    topics:[{t:"Oxirredução"},{t:"Pilhas e baterias"},{t:"Eletrólise"}]},
+  {id:'enem-quimica-ambiental', title:"Química ambiental", subjectId:'quimica', estMinutes:15, enem:true, desc:"Chuva ácida, efeito estufa, tratamento de água e descarte de resíduos.",
+    topics:[{t:"Chuva ácida"},{t:"Efeito estufa e camada de ozônio"},{t:"Tratamento de água e esgoto"},{t:"Resíduos e reciclagem"}]},
+  {id:'enem-quimica-ligacoes', title:"Ligações químicas e forças intermoleculares", subjectId:'quimica', estMinutes:15, enem:true, desc:"Ligações iônica, covalente e metálica, polaridade e solubilidade.",
+    topics:[{t:"Ligação iônica, covalente e metálica"},{t:"Polaridade"},{t:"Forças intermoleculares"}]},
+  {id:'enem-biologia-ecologia', title:"Ecologia", subjectId:'biologia', estMinutes:15, enem:true, desc:"Cadeias alimentares, ciclos biogeoquímicos, relações ecológicas e impactos ambientais.",
+    topics:[{t:"Cadeias e teias alimentares"},{t:"Ciclos biogeoquímicos"},{t:"Relações ecológicas"},{t:"Impactos ambientais"}]},
+  {id:'enem-biologia-citologia', title:"Citologia", subjectId:'biologia', estMinutes:15, enem:true, desc:"A célula, a membrana, as organelas e a divisão celular.",
+    topics:[{t:"Estrutura da célula"},{t:"Membrana e transportes"},{t:"Organelas"},{t:"Mitose e meiose"}]},
+  {id:'enem-biologia-fisiologia-humana', title:"Fisiologia humana", subjectId:'biologia', estMinutes:15, enem:true, desc:"Digestão, circulação, respiração, imunidade e hormônios.",
+    topics:[{t:"Digestão"},{t:"Circulação e respiração"},{t:"Sistema imunológico"},{t:"Sistema endócrino"}]},
+  {id:'enem-biologia-genetica', title:"Genética", subjectId:'biologia', estMinutes:15, enem:true, desc:"DNA, leis de Mendel, heredogramas e biotecnologia.",
+    topics:[{t:"DNA, RNA e proteínas"},{t:"Primeira lei de Mendel"},{t:"Heredogramas"},{t:"Biotecnologia"}]},
+  {id:'enem-biologia-evolucao', title:"Evolução", subjectId:'biologia', estMinutes:15, enem:true, desc:"Lamarck, Darwin, seleção natural e formação de espécies.",
+    topics:[{t:"Lamarck e Darwin"},{t:"Seleção natural"},{t:"Especiação"}]},
+  {id:'enem-biologia-saude-doencas', title:"Doenças e saúde pública", subjectId:'biologia', estMinutes:15, enem:true, desc:"Viroses, bacterioses, parasitoses, vacinas e saneamento.",
+    topics:[{t:"Viroses"},{t:"Bacterioses"},{t:"Parasitoses"},{t:"Vacinas e saneamento"}]},
+  {id:'enem-historia-brasil-colonia', title:"Brasil Colônia", subjectId:'historia', estMinutes:15, enem:true, desc:"Economia do açúcar e do ouro, escravidão e revoltas coloniais.",
+    topics:[{t:"Economia açucareira"},{t:"Escravidão e resistência"},{t:"Mineração"},{t:"Revoltas coloniais"}]},
+  {id:'enem-historia-brasil-imperio', title:"Brasil Império", subjectId:'historia', estMinutes:15, enem:true, desc:"Independência, Primeiro Reinado, Regências, Segundo Reinado e abolição.",
+    topics:[{t:"Independência"},{t:"Primeiro Reinado e Regências"},{t:"Segundo Reinado"},{t:"Abolição da escravidão"}]},
+  {id:'enem-historia-republica-velha', title:"República Velha", subjectId:'historia', estMinutes:15, enem:true, desc:"Política do café com leite, coronelismo e revoltas como Canudos e a Revolta da Vacina.",
+    topics:[{t:"Café com leite e coronelismo"},{t:"Canudos e Contestado"},{t:"Revolta da Vacina e da Chibata"}]},
+  {id:'enem-historia-era-vargas', title:"Era Vargas", subjectId:'historia', estMinutes:15, enem:true, desc:"Revolução de 1930, Estado Novo e trabalhismo.",
+    topics:[{t:"Revolução de 1930"},{t:"Governo constitucional"},{t:"Estado Novo"},{t:"Trabalhismo e CLT"}]},
+  {id:'enem-historia-revolucao-industrial', title:"Revolução Industrial", subjectId:'historia', estMinutes:15, enem:true, desc:"As fases da industrialização e as mudanças no trabalho e nas cidades.",
+    topics:[{t:"Primeira Revolução Industrial"},{t:"Trabalho nas fábricas"},{t:"Segunda Revolução Industrial"}]},
+  {id:'enem-geografia-populacao', title:"População", subjectId:'geografia', estMinutes:15, enem:true, desc:"Crescimento, transição demográfica, pirâmides etárias e migrações.",
+    topics:[{t:"Crescimento e transição demográfica"},{t:"Pirâmides etárias"},{t:"Migrações"}]},
+  {id:'enem-geografia-agraria', title:"Questão agrária", subjectId:'geografia', estMinutes:15, enem:true, desc:"Estrutura fundiária, agronegócio, agricultura familiar e conflitos no campo.",
+    topics:[{t:"Estrutura fundiária"},{t:"Agronegócio e agricultura familiar"},{t:"Conflitos no campo"}]},
+  {id:'enem-geografia-meio-ambiente', title:"Meio ambiente e biomas", subjectId:'geografia', estMinutes:15, enem:true, desc:"Biomas brasileiros, desmatamento e mudanças climáticas.",
+    topics:[{t:"Biomas brasileiros"},{t:"Desmatamento e queimadas"},{t:"Mudanças climáticas"}]},
+  {id:'enem-geografia-globalizacao', title:"Globalização", subjectId:'geografia', estMinutes:15, enem:true, desc:"Fluxos de capital e informação, blocos econômicos e divisão internacional do trabalho.",
+    topics:[{t:"O que é globalização"},{t:"Blocos econômicos"},{t:"Divisão internacional do trabalho"}]},
+  {id:'enem-geografia-urbanizacao', title:"Urbanização", subjectId:'geografia', estMinutes:15, enem:true, desc:"Urbanização brasileira, metrópoles e problemas urbanos.",
+    topics:[{t:"Urbanização brasileira"},{t:"Metrópoles e rede urbana"},{t:"Problemas urbanos"}]},
+  {id:'enem-geografia-geopolitica', title:"Geopolítica", subjectId:'geografia', estMinutes:15, enem:true, desc:"Da Guerra Fria aos conflitos atuais e à ordem mundial.",
+    topics:[{t:"Guerra Fria"},{t:"Nova ordem mundial"},{t:"Conflitos atuais"}]},
+  {id:'enem-filosofia-etica', title:"Ética", subjectId:'filosofia', estMinutes:15, enem:true, desc:"Virtude em Aristóteles, o dever em Kant e o utilitarismo.",
+    topics:[{t:"Ética das virtudes"},{t:"Kant e o dever"},{t:"Utilitarismo"}]},
+  {id:'enem-filosofia-politica', title:"Filosofia política", subjectId:'filosofia', estMinutes:15, enem:true, desc:"Hobbes, Locke e Rousseau e a origem do Estado.",
+    topics:[{t:"Hobbes"},{t:"Locke"},{t:"Rousseau"}]},
+  {id:'enem-filosofia-antiga', title:"Filosofia antiga", subjectId:'filosofia', estMinutes:15, enem:true, desc:"Pré-socráticos, Sócrates, Platão e Aristóteles.",
+    topics:[{t:"Pré-socráticos"},{t:"Sócrates e Platão"},{t:"Aristóteles"}]},
+  {id:'enem-filosofia-moderna', title:"Filosofia moderna", subjectId:'filosofia', estMinutes:15, enem:true, desc:"Descartes, empirismo e Iluminismo.",
+    topics:[{t:"Descartes e o racionalismo"},{t:"Empirismo"},{t:"Iluminismo"}]},
+  {id:'enem-filosofia-contemporanea', title:"Filosofia contemporânea", subjectId:'filosofia', estMinutes:15, enem:true, desc:"Nietzsche, existencialismo, Escola de Frankfurt e Hannah Arendt.",
+    topics:[{t:"Nietzsche"},{t:"Existencialismo"},{t:"Escola de Frankfurt"},{t:"Hannah Arendt"}]},
+  {id:'enem-sociologia-classicos', title:"Clássicos da sociologia", subjectId:'sociologia', estMinutes:15, enem:true, desc:"Durkheim, Weber e Marx e como cada um explica a sociedade.",
+    topics:[{t:"Durkheim"},{t:"Max Weber"},{t:"Karl Marx"}]},
+  {id:'enem-sociologia-cultura-identidade', title:"Cultura e identidade", subjectId:'sociologia', estMinutes:15, enem:true, desc:"Cultura, etnocentrismo, indústria cultural e identidade.",
+    topics:[{t:"Cultura e etnocentrismo"},{t:"Indústria cultural"},{t:"Identidade"}]},
+  {id:'enem-sociologia-cidadania-movimentos', title:"Cidadania e movimentos sociais", subjectId:'sociologia', estMinutes:15, enem:true, desc:"Direitos, democracia e movimentos sociais no Brasil.",
+    topics:[{t:"Direitos e cidadania"},{t:"Movimentos sociais"},{t:"Democracia e participação"}]},
+  {id:'enem-sociologia-trabalho-desigualdade', title:"Trabalho e desigualdade", subjectId:'sociologia', estMinutes:15, enem:true, desc:"Fordismo, toyotismo, precarização e desigualdade social.",
+    topics:[{t:"Fordismo e toyotismo"},{t:"Precarização do trabalho"},{t:"Desigualdade social"}]},
+  {id:'enem-sociologia-estado-poder', title:"Estado e poder", subjectId:'sociologia', estMinutes:15, enem:true, desc:"Formas de poder, Estado moderno e ciência política.",
+    topics:[{t:"Poder e dominação"},{t:"Estado moderno"},{t:"Ciência política"}]},
+  {id:'enem-ingles-leitura-ingles', title:"Leitura e interpretação em inglês", subjectId:'ingles', estMinutes:15, enem:true, desc:"Estratégias para entender o texto sem saber todas as palavras.",
+    topics:[{t:"Skimming e scanning"},{t:"Ideia principal"},{t:"Inferência"}]},
+  {id:'enem-ingles-cognatos', title:"Cognatos e falsos cognatos", subjectId:'ingles', estMinutes:15, enem:true, desc:"Palavras parecidas com o português e as que enganam.",
+    topics:[{t:"Cognatos"},{t:"Falsos cognatos mais cobrados"},{t:"Vocabulário pelo contexto"}]},
+  {id:'enem-ingles-generos-ingles', title:"Gêneros textuais em inglês", subjectId:'ingles', estMinutes:15, enem:true, desc:"Notícias, anúncios, tirinhas, poemas e letras de música.",
+    topics:[{t:"Notícias e artigos"},{t:"Anúncios, cartuns e tirinhas"},{t:"Poemas e letras de música"}]},
+  {id:'enem-ingles-conectivos-ingles', title:"Conectivos em inglês", subjectId:'ingles', estMinutes:15, enem:true, desc:"Palavras de ligação que mudam o sentido da frase.",
+    topics:[{t:"Adição e contraste"},{t:"Causa e consequência"},{t:"Sequência e conclusão"}]},
+  {id:'enem-ingles-vocabulario-ingles', title:"Vocabulário e formação de palavras", subjectId:'ingles', estMinutes:15, enem:true, desc:"Prefixos, sufixos e referência pronominal.",
+    topics:[{t:"Prefixos e sufixos"},{t:"Referência pronominal"},{t:"Palavras-chave da questão"}]},
+  {id:'enem-espanhol-leitura-espanhol', title:"Leitura e interpretação em espanhol", subjectId:'espanhol', estMinutes:15, enem:true, desc:"Estratégias para entender o texto e achar a resposta.",
+    topics:[{t:"Ideia principal"},{t:"Informação explícita e implícita"},{t:"Inferência"}]},
+  {id:'enem-espanhol-falsos-amigos', title:"Falsos amigos (heterossemânticos)", subjectId:'espanhol', estMinutes:15, enem:true, desc:"Palavras iguais ou parecidas com o português com sentido diferente.",
+    topics:[{t:"O que são heterossemânticos"},{t:"Os mais cobrados"},{t:"Vocabulário pelo contexto"}]},
+  {id:'enem-espanhol-cultura-hispanica', title:"Cultura hispânica nos textos", subjectId:'espanhol', estMinutes:15, enem:true, desc:"Música, literatura, história e diversidade dos países de língua espanhola.",
+    topics:[{t:"América Latina nos textos"},{t:"Música e literatura"},{t:"Diversidade e identidade"}]},
+  {id:'enem-espanhol-generos-espanhol', title:"Gêneros textuais em espanhol", subjectId:'espanhol', estMinutes:15, enem:true, desc:"Notícias, tirinhas, anúncios e poemas.",
+    topics:[{t:"Notícias e artigos"},{t:"Tirinhas e anúncios"},{t:"Poemas e canções"}]},
+  {id:'enem-espanhol-gramatica-espanhol', title:"Gramática em contexto", subjectId:'espanhol', estMinutes:15, enem:true, desc:"Artigos, pronomes e conectores que mudam o sentido.",
+    topics:[{t:"Artigos e contrações"},{t:"Pronomes"},{t:"Conectores"}]},
+];
+const ENEM_EXISTING = new Set(['cinematica','leis-newton','termologia','ditadura-militar','revolucao-francesa','segunda-guerra']);
+
+const CATALOG = [...SEED_CONTENTS, ...DISCOVERABLE_SUBJECTS, ...ENEM_CATALOG].map(item => ({
   ...item,
+  enem: !!item.enem || ENEM_EXISTING.has(item.id),
   progressPct: 0,
   topics: (item.topics || []).map(t => ({t: t.t, done: false})),
 }));
@@ -1227,7 +1418,7 @@ function demoModule(contentId, moduleTitle){ return DEMO_LIBRARY[`${contentId}|$
    Cada pessoa tem o seu espaço neste navegador: 'v' (visitante), 'u:<id da conta Google>' ou 'p:<id do perfil local>'.
    As chaves de dados (sf_contents, sf_live_sessions...) são gravadas como sf:<espaço>:<nome>.
    Tema, perfil de login e controles de versão continuam globais. */
-const GLOBAL_KEYS = new Set(['sf_theme','sf_auth_user','sf_local_profiles','sf_data_version','sf_space','sf_legacy_owner','sf_drawers_open']);
+const GLOBAL_KEYS = new Set(['sf_theme','sf_auth_user','sf_local_profiles','sf_data_version','sf_space','sf_legacy_owner','sf_drawers_open','sf_nav_collapsed']);
 let DATA_SPACE = null;
 function lsKey(key, space){
   const sp = space === undefined ? DATA_SPACE : space;
@@ -2379,9 +2570,12 @@ function AppProvider({children}){
   const openCriarConteudoGated = (subjectId)=> isVisitor
     ? askAccount('criar', {type:'criar-conteudo', subjectId: typeof subjectId === 'string' ? subjectId : null})
     : openCriarConteudo(subjectId);
+  /* Temas do catálogo do Study (inclui os do ENEM) são abertos ao visitante: a trilha é a mesma para todos e fica em cache no servidor.
+     O que é livre (criar conteúdo com qualquer tema, nova matéria) continua pedindo perfil. */
   const addUserSubjectGated = (source)=>{
-    if(isVisitor){ askAccount('adicionar', source && source.id ? {type:'add-catalog', id: source.id} : null); return null; }
-    return addUserSubject(source);
+    const fromCatalog = !!(source && source.id && CATALOG.some(x => x.id === source.id));
+    if(isVisitor && !fromCatalog){ askAccount('adicionar', null); return null; }
+    return addUserSubject(fromCatalog ? CATALOG.find(x => x.id === source.id) : source);
   };
   const openSubjectSheetGated = (opts)=> (isVisitor && !(opts && opts.id))
     ? askAccount('materia', {type:'nova-materia'})
@@ -3242,7 +3436,7 @@ function SubjectPreviewModal({ item, onClose }){
     <ModalShell onClose={onClose} labelledBy="preview-title">
       <div className="flex items-center gap-3"><SubjectTile subjectId={item.subjectId}/><span className="text-[14px] text-sf-muted">{subjName(item.subjectId)}</span></div>
       <h2 id="preview-title" className="sf-ed-title text-sf-text mt-4">{item.title}</h2>
-      {metaLine && <p className="text-[14px] leading-[20px] text-sf-muted mt-1">{metaLine}</p>}
+      {(metaLine || item.enem) && <p className="text-[14px] leading-[20px] text-sf-muted mt-1 flex items-center gap-2">{item.enem && <EnemTag/>}{metaLine}</p>}
 
       {loading && <div className="mt-4 flex flex-col gap-2" role="status" aria-label="Carregando resumo">{[100,92,80].map((w,i)=><span key={i} className="sf-skel h-4" style={{width:w+'%'}}/>)}</div>}
       {error && !loading && (
@@ -3274,8 +3468,8 @@ function SubjectPreviewModal({ item, onClose }){
           </>
         ) : (
           <>
-            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px] inline-flex items-center justify-center gap-2">{isVisitor && <IconLock size={14}/>}Adicionar em {subjName(item.subjectId)}</button>
-            {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 text-center">Adicionar conteúdos pede um perfil local ou uma conta Google.</p>}
+            <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px] inline-flex items-center justify-center gap-2">Adicionar em {subjName(item.subjectId)}</button>
+            {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 text-center">Sem perfil, o progresso fica neste navegador por 30 dias sem uso.</p>}
             <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Fechar</button>
           </>
         )}
@@ -3649,7 +3843,10 @@ function HomeScreen(){
     const NextIcon = nextTopic ? MODULE_META[nextType].Icon : null;
     const started = prog.completed > 0;
     const videoPending = !!(nextTopic && lastWatchedVideo && lastWatchedVideo.contentId === pc.id && lastWatchedVideo.topicIndex === nextIdx);
-    const cta = nextTopic ? (videoPending ? 'Retomar videoaula' : (started ? 'Continuar' : 'Começar')) : (prog.total ? 'Revisar' : 'Abrir conteúdo');
+    const cta = nextTopic ? (videoPending ? 'Continuar videoaula' : (started ? 'Continuar' : 'Começar')) : (prog.total ? 'Revisar' : 'Abrir conteúdo');
+    /* Parou numa videoaula: mostra a miniatura do vídeo ao lado do módulo */
+    const pendingVid = videoPending ? lastWatchedVideo : null;
+    const pendingThumb = pendingVid ? (pendingVid.thumbnail || `https://i.ytimg.com/vi/${pendingVid.id}/mqdefault.jpg`) : '';
     const go = ()=> (nextTopic ? openModule(pc.id, nextIdx) : openDetalhe(pc.id));
     resumeBlock = (
       <section aria-labelledby="h-retomar" className="rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
@@ -3663,7 +3860,19 @@ function HomeScreen(){
           <button type="button" onClick={()=>openDetalhe(pc.id)} className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px] font-semibold shrink-0" aria-label={`Ver trilha de ${pc.title}`}>Ver trilha</button>
         </div>
         {prog.total > 0 && <SegmentedTrail className="mt-4" states={trailStates(pc)} label={`Trilha de ${pc.title}`}/>}
-        {nextTopic ? (
+        {nextTopic && pendingVid ? (
+          <div className="mt-4 flex items-center gap-3">
+            <span className="sf-resume-thumb" aria-hidden="true">
+              <img src={pendingThumb} alt="" loading="lazy" decoding="async" onError={(e)=>{ e.currentTarget.style.visibility = 'hidden'; }}/>
+              <span className="sf-resume-play"><IconPlay size={14}/></span>
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="text-[14px] leading-[20px] text-sf-muted block">Você parou nesta videoaula</span>
+              <span className="sf-ed-content text-sf-text block line-clamp-2">{nextTopic.t}</span>
+              {pendingVid.title && <span className="text-[13px] leading-[18px] text-sf-muted block truncate">{pendingVid.title}</span>}
+            </span>
+          </div>
+        ) : nextTopic ? (
           <div className="mt-4">
             <p className="text-[14px] leading-[20px] text-sf-muted m-0 flex items-center gap-1.5">
               <span className="inline-flex" aria-hidden="true"><NextIcon size={15}/></span>
@@ -3738,7 +3947,7 @@ function HomeScreen(){
 
   if(desk){
     return (
-      <div className="sf-wide pb-8">
+      <div className="sf-wide sf-full sf-split pb-8">
         {header}
         <div className="sf-cols mt-8">
           <div className="sf-col-main flex flex-col gap-10">{resumeBlock}{othersBlock}</div>
@@ -3777,6 +3986,7 @@ function contentStateLabel(c){
   if(p.total > 0 && p.completed === p.total) return isDemoContent(c) ? 'Exemplo · Concluído' : 'Concluído';
   return modulesLabel(c);
 }
+function EnemTag(){ return <span className="sf-enem-tag">Cai no ENEM</span>; }
 function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview}){
   const [stored, setStored] = useDrawerState(`materia:${sid}`);
   const open = searching ? true : stored;
@@ -3784,9 +3994,10 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
   const listId = `gaveta-${sid}`;
   const orphan = sid === ORPHAN_SUBJECT;
   const name = orphan ? 'Sem matéria' : subjName(sid);
+  const enemN = suggestions.filter(d => d.enem).length;
   const line = sum.n === 0
-    ? 'Nenhum conteúdo ainda.'
-    : `${sum.n} ${plural(sum.n, 'conteúdo', 'conteúdos')} · ${sum.doneN} ${plural(sum.doneN, 'concluído', 'concluídos')}`;
+    ? (enemN ? `${enemN} ${plural(enemN, 'tema', 'temas')} que mais caem no ENEM` : 'Nenhum conteúdo ainda.')
+    : `${sum.n} ${plural(sum.n, 'conteúdo', 'conteúdos')} · ${sum.doneN} ${plural(sum.doneN, 'concluído', 'concluídos')}${enemN ? ` · ${enemN} do ENEM` : ''}`;
   return (
     <li className="sf-row-div">
       <h3 className="m-0">
@@ -3842,14 +4053,17 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
             )}
             {suggestions.length > 0 && (
               <div className="mt-2">
-                <p className="text-[13px] leading-[18px] font-semibold text-sf-muted">Sugestões do Study</p>
+                <p className="text-[13px] leading-[18px] font-semibold text-sf-muted">{enemN ? 'Para começar: o que mais cai no ENEM' : 'Sugestões do Study'}</p>
                 <ul className="list-none p-0 m-0 mt-1">
                   {suggestions.map(d => (
                     <li key={d.id}>
-                      <button type="button" onClick={()=>onPreview(d)} aria-label={`Ver prévia de ${d.title}`}
+                      <button type="button" onClick={()=>onPreview(d)} aria-label={`${d.title}${d.enem ? ', cai no ENEM' : ''}. Ver prévia`}
                         className="w-full text-left py-2 flex items-center gap-3 bg-transparent border-0 cursor-pointer min-h-[44px]">
-                        <span className="flex-1 min-w-0 text-[15px] leading-[20px] text-sf-muted truncate">{d.title}</span>
-                        <span className="text-[13px] font-semibold text-sf-muted shrink-0">Ver prévia</span>
+                        <span className="flex-1 min-w-0" aria-hidden="true">
+                          <span className="block text-[15px] leading-[20px] text-sf-text line-clamp-2">{d.title}</span>
+                          {d.enem && <span className="block mt-1"><EnemTag/></span>}
+                        </span>
+                        <span className="text-[13px] font-semibold text-sf-muted shrink-0" aria-hidden="true">Ver prévia</span>
                       </button>
                     </li>
                   ))}
@@ -3884,12 +4098,13 @@ function ExplorarScreen(){
       if(searching && !contentMatchesQuery(d, words)) return;
       map[d.subjectId].suggestions.push(d);
     });
+    ids.forEach(id => { map[id].suggestions.sort((a, b) => (b.enem ? 1 : 0) - (a.enem ? 1 : 0)); });
     const list = ids.map(id => ({id, ...map[id]}));
     if(orphans.length) list.push({id: ORPHAN_SUBJECT, items: orphans, suggestions: []});
     return searching ? list.filter(g => g.items.length || g.suggestions.length) : list;
   }, [contents, words, discoverableSubjects, subjectsStore]);
   const openPreviewItem = (item)=> setPreviewItem({
-    id: item.id, title: item.title, subjectId: item.subjectId, unitLabel: item.unitLabel, estMinutes: item.estMinutes, desc: item.desc,
+    id: item.id, title: item.title, subjectId: item.subjectId, unitLabel: item.unitLabel, estMinutes: item.estMinutes, desc: item.desc, enem: !!item.enem,
     topics: (item.topics || []).map(t => ({ t: t.t || t, done: false })),
   });
 
@@ -4282,16 +4497,17 @@ function SessionNav({compact}){
 
 /* Navegação lateral (Figma: "Navegação lateral"): expandida a partir de 1280 px, compacta (trilho) entre 1024 e 1279. */
 /* No computador, Perfil sai da lista e vira o bloco de conta no rodapé da navegação (quem está usando + tipo de acesso). */
-function SideNav({compact}){
+function SideNav({compact, onToggle}){
   const {tab: rawTab, goTab, view, user} = useApp();
   const tab = activeTabFor(rawTab, view);
   return (
     <nav aria-label="Navegação principal" className="sf-sidenav" data-compact={compact ? 'true' : 'false'}>
-      <button type="button" onClick={()=>goTab('home')} className="sf-sidenav-brand bg-transparent border-0 cursor-pointer" aria-label={`${BRAND_NAME}, ir para o Início`}>
+      <button type="button" onClick={onToggle} className="sf-sidenav-brand bg-transparent border-0 cursor-pointer"
+        aria-expanded={!compact} aria-label={compact ? 'Mostrar os nomes do menu' : 'Recolher o menu'} title={compact ? 'Mostrar os nomes do menu' : 'Recolher o menu'}>
         {compact ? <BrandSymbol size={32}/> : <BrandLockup size={28}/>}
       </button>
       {TABS.filter(t => t.key !== 'perfil').map(({key,label,Icon})=>(
-        <button key={key} type="button" onClick={()=>goTab(key)} aria-current={tab===key ? 'page' : undefined} className="sf-sidenav-item">
+        <button key={key} type="button" onClick={()=>goTab(key)} aria-current={tab===key ? 'page' : undefined} className="sf-sidenav-item" title={compact ? label : undefined}>
           <Icon size={20}/><span>{label}</span>
         </button>
       ))}
@@ -4646,11 +4862,11 @@ function ProgressoScreen(){
 
   if(desk){
     return (
-      <div className="sf-wide pb-8">
+      <div className="sf-wide sf-full sf-split pb-8" style={{'--cols-gap':'64px','--panel-w':'360px','--split-gap':'8px'}}>
         <ScreenTitle>Progresso</ScreenTitle>
-        <div className="sf-cols mt-2" style={{'--cols-gap':'64px'}}>
+        <div className="sf-cols mt-2">
           <div className="sf-col-main">{weekSection}{historySection}</div>
-          <aside className="sf-col-panel [&>section]:mt-6" style={{width:360, flexBasis:360}} aria-label="Ofensiva e conteúdos"><StreakSection streak={streak} studyDates={studyDates} liveSessions={liveSessions}/>{contentsSection}</aside>
+          <aside className="sf-col-panel [&>section]:mt-6" aria-label="Ofensiva e conteúdos"><StreakSection streak={streak} studyDates={studyDates} liveSessions={liveSessions}/>{contentsSection}</aside>
         </div>
       </div>
     );
@@ -5067,9 +5283,9 @@ function PlanoScreen(){
   if(desk){
     /* Plano · desktop (Figma 1440): semana e dia na coluna; mês e "Sem data" no painel. Sem dados fictícios. */
     return (
-      <div className="sf-wide pb-8">
+      <div className="sf-wide sf-full sf-split pb-8" style={{'--cols-gap':'64px'}}>
         {header}
-        <div className="sf-cols mt-8" style={{'--cols-gap':'64px'}}>
+        <div className="sf-cols mt-8">
           <div className="sf-col-main">{weekStrip}{dayAndWeek}</div>
           <aside className="sf-col-panel" aria-label="Mês e atividades sem data">
             <MonthGrid sel={sel} onSelect={setSel} byDate={byDate}/>
@@ -6996,7 +7212,7 @@ function ModuleScreen({contentId, topicIndex}){
   const panelLayout = (band === 'wide' && ttype === MODULE_TYPES.READING) || (isDeskBand(band) && ttype === MODULE_TYPES.VIDEO);
   return (
     <ModuleLayoutCtx.Provider value={{band, top: panelLayout ? top : null}}>
-    <div className={panelLayout ? 'sf-wide pt-12 pb-8' : 'pt-12 px-5 pb-8'}>
+    <div className={panelLayout ? 'sf-wide sf-full pt-12 pb-8' : 'pt-12 px-5 pb-8'}>
       {!panelLayout && top}
       <div className={panelLayout ? '' : 'mt-4'} aria-label={`${meta.label}${isDone ? ', concluído' : ''}`}>
         {ttype === MODULE_TYPES.VIDEO && <VideoModule content={c} topic={topic} topicIndex={topicIndex} onComplete={handleComplete}/>}
@@ -7065,6 +7281,11 @@ function SessionDoneBanner(){
 function AppShell(){
   const { view, tab, user, goTab, restoreY } = useApp();
   const band = useBand();
+  /* Menu lateral recolhível: clicar no símbolo alterna entre só ícones e ícones com nome. Sem escolha salva,
+     abre com nomes a partir de 1280 px e só com ícones entre 1024 e 1279 px. */
+  const [navPref, setNavPref] = useState(()=>{ try{ const v = localStorage.getItem('sf_nav_collapsed'); return v === '1' ? true : (v === '0' ? false : null); }catch(e){ return null; } });
+  const navCompact = navPref === null ? band === 'rail' : navPref;
+  const toggleNav = ()=>{ const next = !navCompact; setNavPref(next); try{ localStorage.setItem('sf_nav_collapsed', next ? '1' : '0'); }catch(e){} };
   useTheme();   // assina o tema: a troca re-renderiza a árvore para recalcular cores derivadas em JS (sem remontar nada)
   const mainRef = useRef(null);
   const firstNav = useRef(true);
@@ -7082,9 +7303,9 @@ function AppShell(){
 
   if(isDeskBand(band)){
     return (
-      <div className="sf-desk">
+      <div className="sf-desk" data-tight={band === 'rail' && !navCompact ? 'true' : 'false'}>
         <a href="#main-content" className="sf-skip" onClick={(e)=>{ e.preventDefault(); if(mainRef.current) mainRef.current.focus(); }}>Pular para o conteúdo</a>
-        <SideNav compact={band === 'rail'}/>
+        <SideNav compact={navCompact} onToggle={toggleNav}/>
         <main id="main-content" ref={mainRef} tabIndex={-1}>
           <ErrorBoundary key={navKey} onReset={()=>goTab('home')}>
             <div className="sf-screen-in"><Screen/></div>
