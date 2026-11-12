@@ -26,6 +26,11 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Videoaulas: abre a conexão com o YouTube antes do player, para o vídeo aparecer mais rápido -->
+<link rel="preconnect" href="https://www.youtube.com">
+<link rel="preconnect" href="https://i.ytimg.com">
+<link rel="dns-prefetch" href="https://s.ytimg.com">
+<link rel="dns-prefetch" href="https://www.google.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -1658,6 +1663,12 @@ async function searchYouTubeVideos(query){ return (await searchYouTubeVideosDeta
 /* ---------- Player do YouTube (IFrame Player API) ----------
    Carregado uma única vez, sob demanda. Se o script não carregar (rede, bloqueador), a promessa falha e o player mostra o erro. */
 let __ytApiPromise = null;
+/* Carrega a API do player com antecedência, quando o navegador está ocioso, para a videoaula abrir sem esperar o script. */
+function warmYouTubeApi(){
+  if(window.YT && window.YT.Player) return;
+  const go = ()=>{ loadYouTubeApi().catch(()=>{}); };
+  if('requestIdleCallback' in window) requestIdleCallback(go, {timeout: 4000}); else setTimeout(go, 2500);
+}
 function loadYouTubeApi(){
   if(window.YT && window.YT.Player) return Promise.resolve(window.YT);
   if(__ytApiPromise) return __ytApiPromise;
@@ -6668,7 +6679,8 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       if(cancelled) return;
       player = new YT.Player(host, {
         videoId: video.id, width: '100%', height: '100%',
-        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, origin: window.location.origin, ...(startAt ? {start: startAt} : {}) },
+        /* Retomando: começa no ponto salvo e já toca (a pessoa pediu para continuar). */
+        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, origin: window.location.origin, ...(startAt ? {start: startAt, autoplay: 1} : {}) },
         events: {
           onReady: ()=>{
             if(cancelled) return;
@@ -6685,7 +6697,6 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
               try{ tr.last = Number(player.getCurrentTime()) || 0; }catch(err){ tr.last = null; }
               tr.lastWall = performance.now();
               if(!tr.started){ tr.started = true; if(playRef.current) playRef.current(); }
-              setResumeAt(0);
               if(!timer) timer = setInterval(sample, 500);
             } else {
               if(tr.playing) sample();
@@ -6719,7 +6730,7 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
         <div ref={boxRef} className="absolute inset-0"/>
         {status === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Carregando o player">
-            {video.thumbnail && <img src={video.thumbnail} alt="" referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover opacity-60"/>}
+            <img src={video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`} alt="" referrerPolicy="no-referrer" decoding="async" fetchpriority="high" className="absolute inset-0 w-full h-full object-cover"/>
             <span className="relative w-14 h-14 rounded-full flex items-center justify-center text-white" style={{background:'rgba(0,0,0,.45)'}}><IconPlay size={18}/></span>
           </div>
         )}
@@ -6732,7 +6743,7 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       </div>
       {resumeAt > 0 && status !== 'error' && (
         <p className="mt-2 mb-0 text-[14px] leading-[20px] text-sf-muted flex items-center gap-2 flex-wrap" role="status">
-          <span>Começa de onde você parou: <span className="tnum text-sf-text font-semibold">{fmtClock(resumeAt)}</span></span>
+          <span>Continuando de onde você parou: <span className="tnum text-sf-text font-semibold">{fmtClock(resumeAt)}</span></span>
           <button type="button" onClick={restart} disabled={status !== 'ready'} className="sf-btn sf-btn-ghost h-9 px-2 -ml-1 text-[14px] font-semibold">Assistir do início</button>
         </p>
       )}
@@ -6775,6 +6786,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const saved = cleanTopicVideo(topic.video);
   const [watch, setWatch] = useState(null);
   const playerTopRef = useRef(null);
+  const startedRef = useRef(false);
 
   const query = videoQueryFor(content, topic);
 
@@ -6787,7 +6799,8 @@ function VideoModule({content, topic, topicIndex, onComplete}){
         setResults(res.videos);
         /* Vídeo escolhido pela busca antiga (sem a matéria): se ele não aparece entre os resultados da busca nova,
            provavelmente é de outro assunto (ex.: "tríade" de ortopedia numa aula de música) e é trocado. */
-        const stale = saved && !(saved.qv >= VIDEO_QUERY_VERSION) && !res.videos.some(v => v.id === saved.id);
+        /* Não troca um vídeo que já começou a tocar: a busca pode demorar a responder e a troca reiniciaria o player. */
+        const stale = saved && !startedRef.current && !(saved.qv >= VIDEO_QUERY_VERSION) && !res.videos.some(v => v.id === saved.id);
         if(!saved || stale) setTopicVideo(content.id, topicIndex, {...res.videos[0], qv: VIDEO_QUERY_VERSION});
         setState('ok');
       } else if(!saved){
@@ -6827,7 +6840,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const playerEl = current && (
     <div ref={playerTopRef} className="mt-4" style={{scrollMarginTop:16}}>
       <YouTubePlayer key={current.id} video={current} trackKey={tKey} onWatch={setWatch}
-        onPlay={()=> noteWatchedVideo(current, {subjectId: content.subjectId, topic: topic.t, contentTitle: content.title, contentId: content.id, topicIndex})}/>
+        onPlay={()=>{ startedRef.current = true; noteWatchedVideo(current, {subjectId: content.subjectId, topic: topic.t, contentTitle: content.title, contentId: content.id, topicIndex}); }}/>
       <h2 className="sf-ed-content text-sf-text mt-4 break-words">{current.title}</h2>
       {current.channel && <p className="text-[14px] leading-[20px] text-sf-muted mt-0.5">{current.channel}</p>}
       <WatchRuleNote ratio={ratio} done={done} unknownDuration={unknownDur}/>
@@ -7538,6 +7551,7 @@ function AppShell(){
   const [navPref, setNavPref] = useState(()=>{ try{ const v = localStorage.getItem('sf_nav_collapsed'); return v === '1' ? true : (v === '0' ? false : null); }catch(e){ return null; } });
   const navCompact = navPref === null ? band === 'rail' : navPref;
   const toggleNav = ()=>{ const next = !navCompact; setNavPref(next); try{ localStorage.setItem('sf_nav_collapsed', next ? '1' : '0'); }catch(e){} };
+  useEffect(()=>{ warmYouTubeApi(); }, []);
   useTheme();   // assina o tema: a troca re-renderiza a árvore para recalcular cores derivadas em JS (sem remontar nada)
   const mainRef = useRef(null);
   const firstNav = useRef(true);
