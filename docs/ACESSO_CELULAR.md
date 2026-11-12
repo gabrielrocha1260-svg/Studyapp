@@ -1,4 +1,4 @@
-# STUDY no celular
+# Study no celular
 
 O `server.js` entrega o app (`index.html`) e a API (`/api/*`) no **mesmo endereço**. Quando a página é aberta por um domínio que não é `localhost`, o front chama a API nesse mesmo domínio. Em `localhost` ou no Live Server, continua usando `http://localhost:3000`, como antes.
 

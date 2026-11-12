@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="description" content="STUDY: organize matérias, siga trilhas de estudo e registre sessões de foco." />
+<meta name="description" content="Study: organize matérias, siga trilhas de estudo e registre sessões de foco." />
 <meta name="theme-color" content="#09090B" />
 <meta name="color-scheme" content="dark light" />
 <script>
@@ -19,8 +19,11 @@
     var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', t === 'light' ? '#F4F7FC' : '#09090B');
   })();
 </script>
-<title>STUDY</title>
-<link rel="icon" type="image/png" href="logo.png">
+<title>Study</title>
+<link rel="icon" type="image/svg+xml" href="brand/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="brand/favicon-32.png">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -48,7 +51,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <style>
   /* =====================================================================
-     STUDY — Design tokens e componentes
+     Study — Design tokens e componentes
      Camadas:  1) tokens (cores por tema, tipografia, espaço, raios, sombras, movimento)
                2) base  3) componentes reutilizáveis (.sf-*)  4) animações  5) movimento reduzido
      Raios: 8 chips/ícones · 12 controles · 16 cards · 20 cards de destaque · 24 sheets
@@ -97,8 +100,8 @@
     --chart-bar:#2563EB; --chart-bar-hl:#60A5FA; --chart-empty:#242B3D;
     --ring-track:#1A3A72; --ring-fill:#3B82F6; --ring-dot:#60A5FA;
     --progress-fill:#3B82F6; --progress-track:#242B3D;   /* trilha segmentada (DS v2: progress/fill, progress/track) */
-    /* Brilho decorativo do login */
-    --glow-1:rgba(37,99,235,.24); --glow-2:rgba(139,92,246,.12);
+    /* Marca (símbolo Folha): página esquerda, página de fundo, folha em virada */
+    --sym-l:#2563EB; --sym-r:#1A3A72; --sym-f:#60A5FA;
     /* Elevação */
     --shadow-card:none; --shadow-card-hover:0 8px 22px -10px rgba(0,0,0,.6);
     --shadow-float:0 4px 12px rgba(0,0,0,.35); --shadow-modal:0 10px 30px rgba(0,0,0,.45);
@@ -137,7 +140,7 @@
     --chart-bar:#3B82F6; --chart-bar-hl:#1D4ED8; --chart-empty:#D6DFEF;
     --ring-track:#D3DFF7; --ring-fill:#2563EB; --ring-dot:#1D4ED8;
     --progress-fill:#2563EB; --progress-track:#D6DFEF;
-    --glow-1:rgba(37,99,235,.16); --glow-2:rgba(124,58,237,.08);
+    --sym-l:#1D4ED8; --sym-r:#C3D3F3; --sym-f:#3B82F6;
     --shadow-card:0 1px 2px rgba(13,27,56,.05), 0 6px 16px -8px rgba(13,27,56,.12);
     --shadow-card-hover:0 10px 26px -10px rgba(13,27,56,.22);
     --shadow-float:0 4px 14px rgba(13,27,56,.20); --shadow-modal:0 14px 40px rgba(13,27,56,.28);
@@ -203,7 +206,7 @@
   main:focus{ outline:none; }
 
   /* Troca de tema: transição discreta, só enquanto a classe existe (nunca no carregamento) */
-  .sf-theme-anim, .sf-theme-anim *:not(.sf-brand-letter):not(.sf-reveal):not(.sf-brand-rule), .sf-theme-anim *:not(.sf-brand-letter):not(.sf-reveal):not(.sf-brand-rule)::before, .sf-theme-anim *:not(.sf-brand-letter):not(.sf-reveal):not(.sf-brand-rule)::after{
+  .sf-theme-anim, .sf-theme-anim *:not(.sf-intro *), .sf-theme-anim *:not(.sf-intro *)::before, .sf-theme-anim *:not(.sf-intro *)::after{
     transition:background-color .3s var(--ease-in-out), border-color .3s var(--ease-in-out), color .3s var(--ease-in-out),
                fill .3s var(--ease-in-out), stroke .3s var(--ease-in-out), box-shadow .3s var(--ease-in-out) !important; }
 
@@ -391,31 +394,112 @@
   /* fill-mode "backwards": após o fim, não mantém contexto de empilhamento (modais z-50 dentro da tela ficam acima da tab bar) */
   .sf-screen-in{ animation:sffade var(--dur-base) var(--ease-out) backwards; }
 
-  /* ---------- Login: marca digitada + entrada em sequência ---------- */
-  .sf-login{ position:relative; isolation:isolate; }
-  .sf-login::before{ content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
-    background:radial-gradient(70% 38% at 50% 0%, var(--glow-1), transparent 70%), radial-gradient(60% 30% at 100% 100%, var(--glow-2), transparent 70%); }
-  .sf-brand{ margin:0; display:flex; justify-content:center; font-weight:800; line-height:1; letter-spacing:0;
-    font-size:clamp(46px, 15vw, 62px); color:var(--text-primary); }
-  .sf-brand-letter{ position:relative; display:inline-block; margin-right:.2em; opacity:0; transform:translateY(.18em); filter:blur(4px);
-    transition:opacity .26s var(--ease-out), transform .38s var(--ease-out), filter .3s var(--ease-out), color .32s var(--ease-out); }
-  .sf-brand-letter:last-of-type{ margin-right:0; }
-  .sf-brand-letter.is-on{ opacity:1; transform:none; filter:none; }
-  .sf-brand-letter.is-cur::after{ content:''; position:absolute; left:calc(100% + .04em); top:.1em; bottom:.06em; width:.055em; border-radius:2px;
-    background:var(--blue-300); animation:sfblink 1s steps(1,end) infinite; }
-  .sf-brand-letter.is-cur.is-fading::after{ animation:none; opacity:0; transition:opacity .5s var(--ease-out); }
-  .sf-brand-rule{ height:3px; width:44px; margin:18px auto 0; border-radius:3px; background:linear-gradient(90deg, var(--blue-500), var(--violet));
-    transform:scaleX(0); transform-origin:center; transition:transform .6s var(--ease-out) .05s; }
-  .sf-brand-rule.is-on{ transform:scaleX(1); }
-  .sf-reveal{ opacity:0; transform:translateY(10px); transition:opacity .5s var(--ease-out), transform .55s var(--ease-out); transition-delay:var(--d,0ms); }
-  .sf-reveal.is-on{ opacity:1; transform:none; }
-  .sf-login.is-instant .sf-reveal, .sf-login.is-instant .sf-brand-letter, .sf-login.is-instant .sf-brand-rule{ transition-duration:.01ms; transition-delay:0ms; }
+  /* ---------- Marca: símbolo Folha (grade de 96 u) ----------
+     Página esquerda + página de fundo + folha em virada. As cores vêm de --sym-* (tema); o desenho é o mesmo em todo lugar. */
+  .sf-symbol{ display:block; flex:none; overflow:visible; }
+  .sf-symbol path{ stroke-linejoin:round; }
+  .sf-symbol-l{ fill:var(--sym-l); stroke:var(--sym-l); stroke-width:5; }
+  .sf-symbol-r{ fill:var(--sym-r); stroke:var(--sym-r); stroke-width:5; }
+  .sf-symbol-f{ fill:var(--sym-f); stroke:var(--sym-f); stroke-width:4; }
+  .sf-symbol[data-small="true"] .sf-symbol-l{ stroke-width:7; } .sf-symbol[data-small="true"] .sf-symbol-f{ stroke-width:6; }
+  .sf-lockup{ display:inline-flex; align-items:center; gap:calc(var(--lk) * .16); color:var(--text-primary); text-decoration:none; }
+  .sf-wordmark{ font-family:var(--font); font-weight:600; font-size:calc(var(--lk) * .75); line-height:1; letter-spacing:-.01em; transform:translateY(-.04em); }
+
+  /* Indicador de carregamento interno: a folha respira (versão reduzida da abertura) */
+  .sf-loader .sf-symbol-f{ transform-box:view-box; transform-origin:51px 60px; animation:sfleaf 1.4s var(--ease-in-out) infinite; }
+  @keyframes sfleaf{ 0%,100%{ transform:none; } 50%{ transform:scaleX(.18); } }
+
+  /* ---------- Abertura da marca (uma vez por sessão do navegador; nunca com movimento reduzido) ----------
+     Mesmas três formas do símbolo, em camadas com perspectiva real (rotateY na lombada, x = 48 u):
+     0,0 s livro fechado surge · 0,45 s a capa abre · 1,05 s três páginas passam · 1,45 s luz sobe do vão
+     · 1,7 s a folha assenta · 2,0 s o livro sobe · 2,15 s o nome entra letra a letra · 3,2 s some. Toque ou tecla pula. */
+  .sf-intro{ position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; background:#09090B; color:#E8EEFF;
+    --sym-l:#2563EB; --sym-r:#1A3A72; --sym-f:#60A5FA; transition:opacity .38s var(--ease-out); }
+  .sf-intro.is-leaving{ opacity:0; pointer-events:none; }
+  .sf-intro.is-leaving .sf-intro-stage{ transform:scale(.985); transition:transform .38s var(--ease-out); }
+  .sf-intro-stage{ --bk:clamp(112px, 11vw, 168px); position:relative; display:flex; flex-direction:column; align-items:center; gap:calc(var(--bk) * .125); transform:translateY(calc(var(--bk) * .36));
+    animation:ibRise .75s cubic-bezier(.22,1,.36,1) 2s forwards; }
+  /* sem preserve-3d de propósito: cada camada é projetada sozinha e pintada na ordem do DOM.
+     Em um contexto 3D compartilhado, folha e página de fundo ficam no mesmo plano (z = 0) no fim e piscam (z-fighting). */
+  .sf-intro-book{ position:relative; width:var(--bk); height:var(--bk); perspective:calc(var(--bk) * 4); isolation:isolate; }
+  .ib{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; backface-visibility:visible; will-change:transform, opacity; }
+  .ib path{ stroke-linejoin:round; }
+  .ib-back{ opacity:0; animation:ibIn .45s var(--ease-out) .05s forwards; }
+  .ib-cover{ transform-origin:50% 50%; transform:rotateY(180deg); opacity:0;
+    animation:ibIn .45s var(--ease-out) .05s forwards, ibOpen .85s cubic-bezier(.6,.02,.18,1) .45s forwards; }
+  .ib-pass{ transform-origin:50% 50%; opacity:0; animation:ibPass .62s cubic-bezier(.45,.05,.3,1) calc(1.05s + var(--i) * .16s) forwards; }
+  .ib-pass path{ fill:#A9C8FB; stroke:#A9C8FB; stroke-width:4; }
+  .ib-leaf{ transform-origin:53.125% 50%; transform:rotateY(-78deg); opacity:0; animation:ibLeaf .75s cubic-bezier(.2,.9,.25,1.12) 1.7s forwards; }
+  .sf-intro-glow{ position:absolute; left:50%; top:62%; width:300px; height:300px; margin:-150px 0 0 -150px; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle closest-side, rgba(96,165,250,.26) 0%, rgba(59,130,246,.12) 35%, rgba(37,99,235,.04) 62%, rgba(37,99,235,0) 100%); opacity:0; transform:scale(.6);
+    animation:ibGlow 1.6s cubic-bezier(.22,1,.36,1) 1.35s forwards; }
+  .sf-intro-ray{ position:absolute; left:50%; bottom:40%; width:64px; height:150px; margin-left:-32px; pointer-events:none; transform-origin:50% 100%;
+    background:radial-gradient(ellipse 50% 100% at 50% 100%, rgba(191,215,254,.42), rgba(96,165,250,.12) 45%, transparent 75%);
+    opacity:0; transform:scaleY(.2); animation:ibRay 1.5s cubic-bezier(.22,1,.36,1) 1.45s forwards; }
+  .sf-intro-word{ display:flex; font-weight:600; font-size:calc(var(--bk) * .586); line-height:1; letter-spacing:-.01em; }
+  .sf-intro-word > span{ display:inline-block; opacity:0; transform:translateY(12px); filter:blur(6px);
+    animation:ibLetter .6s cubic-bezier(.22,1,.36,1) calc(2.15s + var(--i) * .07s) forwards; }
+  @keyframes ibIn{ to{ opacity:1; } }
+  @keyframes ibOpen{ to{ transform:rotateY(0deg); } }
+  @keyframes ibPass{ 0%{ opacity:0; transform:rotateY(0deg); } 16%{ opacity:.78; } 70%{ opacity:.55; } 100%{ opacity:0; transform:rotateY(-180deg); } }
+  @keyframes ibLeaf{ 0%{ opacity:0; transform:rotateY(-78deg); } 35%{ opacity:1; } 100%{ opacity:1; transform:rotateY(0deg); } }
+  @keyframes ibGlow{ 0%{ opacity:0; transform:scale(.6); } 40%{ opacity:1; } 100%{ opacity:0; transform:scale(1.15); } }
+  @keyframes ibRay{ 0%{ opacity:0; transform:scaleY(.2); } 35%{ opacity:1; } 100%{ opacity:0; transform:scaleY(1); } }
+  @keyframes ibRise{ to{ transform:none; } }
+  @keyframes ibLetter{ to{ opacity:1; transform:none; filter:none; } }
+
+  /* ---------- Entrada (login) ----------
+     Uma coluna de 400 px: logo, boas-vindas, Google, separador, perfil local, visitante, acesso a perfil existente.
+     Celular: direto no fundo. ≥600 px: dentro de um cartão. Sem brilhos nem gradientes. */
+  .sf-auth{ min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px;
+    padding:calc(32px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px)); background:var(--bg-base); }
+  .sf-auth-card{ width:100%; max-width:400px; display:flex; flex-direction:column; }
+  @media (min-width:600px){ .sf-auth{ background:var(--bg-outer); } .sf-auth-card{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-xl); padding:40px 36px 32px; } }
+  .sf-auth-logo{ align-self:center; margin-bottom:32px; }
+  .sf-auth-title{ margin:0; text-align:center; font-size:24px; line-height:30px; font-weight:700; color:var(--text-primary); }
+  .sf-auth-sub{ margin:8px 0 0; text-align:center; font-size:15px; line-height:21px; color:var(--text-secondary); }
+  .sf-auth-actions{ margin-top:28px; display:flex; flex-direction:column; }
+  .sf-auth-sep{ display:flex; align-items:center; gap:12px; margin:20px 0; color:var(--text-tertiary); font-size:13px; line-height:16px; }
+  .sf-auth-sep::before, .sf-auth-sep::after{ content:''; flex:1; height:1px; background:var(--border); }
+  .sf-auth-note{ max-width:360px; margin:0; text-align:center; font-size:13px; line-height:18px; color:var(--text-tertiary); }
+  .sf-auth-back{ align-self:flex-start; margin:-8px 0 12px -12px; }
+  .sf-profile-opt{ width:100%; display:flex; align-items:center; gap:12px; min-height:60px; padding:8px 12px; border-radius:var(--radius-md);
+    border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-primary); font:inherit; text-align:left; cursor:pointer;
+    transition:background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+  @media (hover:hover){ .sf-profile-opt:hover{ border-color:var(--border-strong); background:var(--bg-overlay); } }
+  .sf-choice{ width:100%; display:flex; align-items:center; gap:12px; min-height:64px; padding:10px 14px 10px 12px; border-radius:var(--radius-md);
+    border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-primary); font:inherit; text-align:left; cursor:pointer;
+    transition:background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .sf-choice:active{ transform:scale(.99); }
+  @media (hover:hover){ .sf-choice:hover{ border-color:var(--border-strong); background:var(--bg-overlay); } }
+  .sf-choice-icon{ width:40px; height:40px; border-radius:12px; flex:none; display:flex; align-items:center; justify-content:center; background:var(--brand-tint); color:var(--blue-300); }
+  /* entrada suave do cartão (depois da abertura, quando ela toca) */
+  .sf-auth:not(.is-ready) .sf-auth-card, .sf-auth:not(.is-ready) .sf-auth-note{ opacity:0; }
+  .sf-auth.is-ready .sf-auth-card{ animation:sfAuthIn .6s cubic-bezier(.22,1,.36,1) both; }
+  .sf-auth.is-ready .sf-auth-note{ animation:sfAuthIn .6s cubic-bezier(.22,1,.36,1) .12s both; }
+  @keyframes sfAuthIn{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
+  .sf-at{ display:flex; align-items:center; }
+  .sf-at > span{ padding-left:14px; color:var(--text-tertiary); font-size:16px; }
+  .sf-at input:focus-visible{ outline:none !important; }
+  .sf-at:focus-within{ outline:2px solid var(--focus); outline-offset:0; }
+  .sf-at:has(input[aria-invalid="true"]){ border-color:var(--error-outline); }
+
+  /* Botão do Google (desenho próprio seguindo as diretrizes de marca do Google: logo oficial, cores e contorno do tema) */
+  .sf-gbtn{ width:100%; height:48px; display:inline-flex; align-items:center; justify-content:center; gap:12px; padding:0 16px; position:relative;
+    border-radius:var(--radius-md); border:1px solid #747775; background:#FFFFFF; color:#1F1F1F; cursor:pointer;
+    font-family:Roboto, var(--font); font-size:15px; font-weight:500; letter-spacing:.01em; line-height:20px;
+    transition:background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
+  :root:not([data-theme="light"]) .sf-gbtn{ background:#131314; border-color:#8E918F; color:#E3E3E3; }
+  .sf-gbtn svg{ width:20px; height:20px; flex:none; }
+  @media (hover:hover){ .sf-gbtn:hover:not(:disabled){ background:#F2F2F2; } :root:not([data-theme="light"]) .sf-gbtn:hover:not(:disabled){ background:#202124; border-color:#A8ABA9; } }
+  .sf-gbtn:active:not(:disabled){ transform:scale(.985); }
+  .sf-gbtn:disabled{ cursor:progress; opacity:.75; }
 
   /* Movimento reduzido: tudo aparece de uma vez, sem animações nem transições */
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; transition-delay:0ms !important; scroll-behavior:auto !important; }
     .sf-spinner, .sf-skel{ animation:none; }
-    .sf-brand-letter.is-cur::after{ display:none; }
+    .sf-loader .sf-symbol-f{ animation:none; }
   }
   /* ============================================================
      FASE 3 — Arquitetura responsiva (Figma: "Arquitetura responsiva")
@@ -434,14 +518,33 @@
   /* Desktop: navegação lateral + área principal */
   .sf-desk{ display:flex; min-height:100dvh; background:var(--bg-base); }
   .sf-desk > main{ flex:1 1 auto; min-width:0; padding:0 32px 48px; }
-  .sf-desk main .sf-screen-in > *{ width:100%; max-width:640px; margin-left:auto; margin-right:auto; padding-left:0 !important; padding-right:0 !important; padding-top:40px !important; }
-  .sf-desk main .sf-screen-in > .sf-wide{ max-width:1104px; margin-left:0; }
+  /* Uma moldura para todas as telas: 1104 px centralizada. Telas de uma coluna ficam alinhadas à esquerda dessa moldura
+     com largura de leitura (720 px), então o título de todas as abas começa no mesmo ponto. */
+  .sf-desk main .sf-screen-in > *{ width:100%; max-width:1104px; margin-left:auto; margin-right:auto; padding-left:0 !important; padding-right:0 !important; padding-top:40px !important; }
+  .sf-desk main .sf-screen-in > :not(.sf-wide) > *{ max-width:720px; }
+  /* Explorar no computador: matérias em grade de cartões (as gavetas continuam funcionando) */
+  @media (min-width:1024px){
+    .sf-desk .sf-subj-search{ max-width:560px; }
+    .sf-desk .sf-subj-grid{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; align-items:start; margin-top:12px !important; }
+    .sf-desk .sf-subj-grid > li{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:0 16px; }
+    .sf-desk .sf-subj-grid > li.sf-row-div{ border-bottom:1px solid var(--border); }
+  }
+  @media (min-width:1440px){ .sf-desk .sf-subj-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
   @media (min-width:1280px){ .sf-desk > main{ padding:0 48px 48px; } }
   .sf-sidenav{ position:sticky; top:0; height:100dvh; flex:none; width:240px; display:flex; flex-direction:column; gap:4px; padding:24px 16px;
     background:var(--bar-bg); border-right:1px solid var(--border); z-index:30; }
   .sf-sidenav[data-compact="true"]{ width:72px; padding:24px 8px; align-items:stretch; }
-  .sf-sidenav-brand{ display:flex; align-items:center; height:32px; padding:0 12px; margin-bottom:24px; color:var(--text-primary); font-weight:700; font-size:17px; letter-spacing:.3em; }
+  .sf-sidenav-brand{ display:flex; align-items:center; height:36px; padding:0 10px; margin-bottom:24px; border-radius:var(--radius-md); }
   .sf-sidenav[data-compact="true"] .sf-sidenav-brand{ justify-content:center; padding:0; }
+  .sf-sidenav-foot{ margin-top:auto; display:flex; flex-direction:column; gap:12px; }
+  .sf-sidenav-foot .sf-sidenav-session{ margin-top:0; }
+  .sf-sidenav-account{ display:flex; align-items:center; gap:10px; min-height:52px; padding:8px 10px; border:0; border-top:1px solid var(--border); border-radius:0;
+    background:transparent; color:var(--text-primary); font:inherit; text-align:left; cursor:pointer; padding-top:14px; }
+  .sf-sidenav-account .sf-acc-name{ font-size:14px; line-height:18px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sf-sidenav-account .sf-acc-kind{ font-size:12px; line-height:16px; color:var(--text-secondary); }
+  .sf-sidenav-account[aria-current="page"] .sf-acc-name{ color:var(--blue-300); }
+  @media (hover:hover){ .sf-sidenav-account:hover .sf-acc-name{ color:var(--blue-300); } }
+  .sf-sidenav[data-compact="true"] .sf-sidenav-account{ justify-content:center; padding:12px 0 4px; }
   .sf-sidenav-item{ display:flex; align-items:center; gap:12px; min-height:44px; padding:0 12px; border-radius:var(--radius-md); border:0; background:transparent;
     color:var(--text-secondary); font-family:inherit; font-size:15px; line-height:20px; font-weight:600; cursor:pointer; text-align:left;
     transition:background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
@@ -456,7 +559,8 @@
   @media (min-width:1024px){ .sf-col-panel section.mt-10, .sf-col-panel > section.mt-6{ margin-top:0 !important; } }
   @media (min-width:1024px){
     .sf-cols{ flex-direction:row; align-items:flex-start; gap:var(--cols-gap,48px); }
-    .sf-cols > .sf-col-main{ flex:1 1 var(--main-col,640px); min-width:520px; max-width:var(--main-col,640px); }
+    /* sem --main-col (Início, Plano, Progresso) a coluna principal ocupa a moldura; leitura e videoaula fixam a medida */
+    .sf-cols > .sf-col-main{ flex:1 1 var(--main-col,640px); min-width:520px; max-width:var(--main-col,none); }
     .sf-cols > .sf-col-panel{ flex:0 0 300px; width:300px; display:flex; flex-direction:column; gap:40px; }
   }
   @media (min-width:1280px){ .sf-cols > .sf-col-panel{ flex-basis:320px; width:320px; } }
@@ -501,18 +605,108 @@ const AUTH_STORAGE_KEY = 'sf_auth_user';
 const AUTH_SESSION_DAYS = 30; // validade da sessão local (o app não tem servidor de sessão)
 const DEV_MODE = false;
 
-function decodeJwt(token){
-  try{
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
-    const json = decodeURIComponent(
-      atob(base64).split('').map(c =>
-        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      ).join('')
-    );
-    return JSON.parse(json);
-  }catch(e){ return null; }
+/* ============================================================
+   MARCA — símbolo "Folha": livro aberto com uma página no meio da virada.
+   Grade de 96 u. As mesmas três formas desenham o logo, o favicon (brand/), a sidebar,
+   o indicador de carregamento e a animação de abertura. Abaixo de 24 px a página de fundo sai.
+   ============================================================ */
+const BRAND_NAME = 'Study';
+const BOOK_L = 'M9 42Q28 35 45 44L45 84Q28 77 9 82Z';   // página esquerda
+const BOOK_R = 'M51 44Q69 35 87 42L87 82Q69 77 51 84Z'; // página de fundo
+const BOOK_F = 'M51 44C56 31 64 21 77 15C79 34 77 54 73 71C65 72 57 76 51 82Z'; // folha em virada: presa na lombada, borda livre curva
+function BrandSymbol({size=32, className='', title}){
+  const small = size < 24;
+  return (
+    <svg width={size} height={size} viewBox="0 0 96 96" className={`sf-symbol ${className}`} data-small={small ? 'true' : undefined}
+      role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : 'true'} focusable="false">
+      <path className="sf-symbol-l" d={BOOK_L}/>
+      {!small && <path className="sf-symbol-r" d={BOOK_R}/>}
+      <path className="sf-symbol-f" d={BOOK_F}/>
+    </svg>
+  );
 }
+/* Logo horizontal: símbolo + nome. `size` é a altura do símbolo; o nome é 0,75 dela. */
+function BrandLockup({size=32, className='', as:Tag='span', ...rest}){
+  return (
+    <Tag className={`sf-lockup ${className}`} style={{'--lk': size + 'px'}} {...rest}>
+      <BrandSymbol size={size}/><span className="sf-wordmark">{BRAND_NAME}</span>
+    </Tag>
+  );
+}
+/* Carregamento interno: o símbolo com a folha "respirando". Estático com movimento reduzido. */
+function BrandLoader({size=20, className=''}){
+  return <span className={`sf-loader inline-flex ${className}`} aria-hidden="true"><BrandSymbol size={Math.max(size, 24)}/></span>;
+}
+
+/* Abertura: uma vez por sessão do navegador. Nunca com prefers-reduced-motion. Toque ou tecla pula. */
+const INTRO_KEY = 'sf_intro_seen';
+function shouldPlayIntro(){
+  if(prefersReducedMotion()) return false;
+  try{ return !sessionStorage.getItem(INTRO_KEY); }catch(e){ return false; }
+}
+function BrandIntro({onDone}){
+  const [leaving, setLeaving] = useState(false);
+  useEffect(()=>{
+    try{ sessionStorage.setItem(INTRO_KEY, '1'); }catch(e){}
+    let ended = false, t2 = null;
+    /* a entrada começa a aparecer junto com o fade da abertura: sem intervalo vazio entre as duas */
+    const end = ()=>{ if(ended) return; ended = true; setLeaving(true); window.__sfIntroActive = false; window.dispatchEvent(new Event('sf-intro-done')); t2 = setTimeout(onDone, 380); };
+    const t1 = setTimeout(end, 3200);
+    const evs = ['pointerdown', 'keydown'];
+    evs.forEach(e => document.addEventListener(e, end, true));
+    return ()=>{ clearTimeout(t1); clearTimeout(t2); evs.forEach(e => document.removeEventListener(e, end, true)); };
+  }, []);
+  /* cada camada é um <svg> com o mesmo viewBox: as formas se alinham exatamente ao símbolo final */
+  const layer = (cls, d, pathCls, style)=> (
+    <svg className={`ib ${cls}`} viewBox="0 0 96 96" style={style} focusable="false"><path className={pathCls} d={d}/></svg>
+  );
+  return (
+    <div className={`sf-intro${leaving ? ' is-leaving' : ''}`} aria-hidden="true">
+      <div className="sf-intro-stage">
+        <div className="sf-intro-book">
+          <span className="sf-intro-glow"/>
+          <span className="sf-intro-ray"/>
+          {/* ordem de pintura = ordem física: fundo, capa, páginas que passam por cima, folha final */}
+          {layer('ib-back', BOOK_R, 'sf-symbol-r')}
+          {layer('ib-cover', BOOK_L, 'sf-symbol-l')}
+          {[0,1,2].map(i => <React.Fragment key={i}>{layer('ib-pass', BOOK_R, '', {'--i': i})}</React.Fragment>)}
+          {layer('ib-leaf', BOOK_F, 'sf-symbol-f')}
+        </div>
+        <span className="sf-intro-word">{BRAND_NAME.split('').map((ch, i) => <span key={i} style={{'--i': i}}>{ch}</span>)}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   PERFIS LOCAIS
+   Sem servidor e sem e-mail: um perfil local é um espaço de dados com nome neste navegador ('p:<id>').
+   Não há senha de propósito: sem servidor, uma senha não protegeria os dados guardados no navegador.
+   ============================================================ */
+const PROFILES_KEY = 'sf_local_profiles';
+function loadProfiles(){
+  try{
+    const a = JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]');
+    return Array.isArray(a) ? a.filter(p => p && typeof p.id === 'string' && typeof p.username === 'string') : [];
+  }catch(e){ return []; }
+}
+function saveProfiles(list){ try{ localStorage.setItem(PROFILES_KEY, JSON.stringify(list)); }catch(e){} }
+function normalizeUsername(v){ return String(v || '').trim().replace(/^@+/, '').toLowerCase(); }
+function usernameError(u, list){
+  if(!u) return 'Escolha um nome de usuário.';
+  if(u.length < 3) return 'Use pelo menos 3 caracteres.';
+  if(u.length > 20) return 'Use no máximo 20 caracteres.';
+  if(!/^[a-z0-9._]+$/.test(u)) return 'Use só letras sem acento, números, ponto ou sublinhado.';
+  if(!/^[a-z0-9].*[a-z0-9]$/.test(u)) return 'Comece e termine com letra ou número.';
+  if((list || loadProfiles()).some(p => p.username === u)) return 'Esse nome de usuário já existe neste aparelho. Tente outro.';
+  return '';
+}
+function newProfileId(){
+  const a = new Uint8Array(9);
+  try{ crypto.getRandomValues(a); }catch(e){ for(let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); }
+  return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+}
+function initialsOf(name){ return String(name || '').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'U'; }
 
 
 /* ============================================================
@@ -786,47 +980,47 @@ function subjName(id){ const n = SUBJECTS[id] && SUBJECTS[id].name; return n ? n
 
 const SEED_CONTENTS = [
   {id:'calc-limites', title:'Cálculo — Limites', subjectId:'matematica', unitLabel:'32 flashcards', estMinutes:15, progressPct:62,
-    desc:"Este módulo aborda limites em Cálculo Diferencial. Você aprenderá a calcular limites de funções, entender continuidade e trabalhar com casos como limites laterais e no infinito.",
-    topics:[{t:'Introdução aos Limites',done:true},{t:'Limites Laterais',done:true},{t:'Limites no Infinito',done:false},{t:'Indeterminações',done:false},{t:"Regra de L'Hôpital",done:false}]},
-  {id:'cinematica', title:'Cinemática Escalar', subjectId:'fisica', unitLabel:'24 cards', estMinutes:12, progressPct:20,
-    desc:"Conceitos fundamentais do movimento: posição, velocidade e aceleração ao longo do tempo, com gráficos e exercícios de fixação.",
-    topics:[{t:'Conceitos de Velocidade e Aceleração',done:true},{t:'Movimento Retilíneo Uniforme',done:false},{t:'Movimento Uniformemente Variado',done:false},{t:'Gráficos de Posição e Velocidade',done:false}]},
+    desc:"Limites em cálculo diferencial: como calcular limites de funções, entender continuidade e resolver limites laterais e no infinito.",
+    topics:[{t:'Introdução aos limites',done:true},{t:'Limites laterais',done:true},{t:'Limites no infinito',done:false},{t:'Indeterminações',done:false},{t:"Regra de L'Hôpital",done:false}]},
+  {id:'cinematica', title:'Cinemática escalar', subjectId:'fisica', unitLabel:'24 cards', estMinutes:12, progressPct:20,
+    desc:"Posição, velocidade e aceleração ao longo do tempo, com gráficos e exercícios.",
+    topics:[{t:'Velocidade e aceleração',done:true},{t:'Movimento retilíneo uniforme',done:false},{t:'Movimento uniformemente variado',done:false},{t:'Gráficos de posição e velocidade',done:false}]},
   {id:'segunda-guerra', title:'Segunda Guerra Mundial', subjectId:'historia', unitLabel:'40 cards', estMinutes:20, progressPct:0,
-    desc:"Panorama do maior conflito do século XX: causas, principais frentes de batalha e consequências para o mundo pós-guerra.",
-    topics:[{t:'Causas do Conflito',done:false},{t:'Principais Frentes de Batalha',done:false},{t:'O Holocausto',done:false},{t:'Fim da Guerra e Consequências',done:false}]},
-  {id:'present-perfect', title:'Present Perfect Tense', subjectId:'ingles', unitLabel:'18 cards', estMinutes:8, progressPct:80,
-    desc:"Estrutura, usos e contextos do Present Perfect em inglês, com foco nos erros mais comuns de estudantes brasileiros.",
-    topics:[{t:'Estrutura do Present Perfect',done:true},{t:'Have vs Has',done:true},{t:'Usos e Contextos',done:true},{t:'Erros Comuns',done:false}]},
+    desc:"As causas, as principais frentes de batalha e o que mudou no mundo depois da guerra.",
+    topics:[{t:'Causas da guerra',done:false},{t:'Principais frentes de batalha',done:false},{t:'O Holocausto',done:false},{t:'Fim da guerra e consequências',done:false}]},
+  {id:'present-perfect', title:'Present Perfect', subjectId:'ingles', unitLabel:'18 cards', estMinutes:8, progressPct:80,
+    desc:"Como montar e quando usar o Present Perfect, com os erros que brasileiros mais cometem.",
+    topics:[{t:'Como se forma o Present Perfect',done:true},{t:'Have ou has',done:true},{t:'Quando usar',done:true},{t:'Erros comuns',done:false}]},
 ];
 
 const DISCOVERABLE_SUBJECTS = [
   {id:'derivadas', title:'Derivadas', subjectId:'matematica', unitLabel:'28 flashcards', estMinutes:15,
     desc:'Regras de derivação, taxa de variação e aplicações.',
-    topics:[{t:'Definição de Derivada',done:false},{t:'Regras Básicas',done:false},{t:'Regra da Cadeia',done:false},{t:'Aplicações',done:false}]},
+    topics:[{t:'O que é derivada',done:false},{t:'Regras básicas',done:false},{t:'Regra da cadeia',done:false},{t:'Aplicações',done:false}]},
   {id:'integrais', title:'Integrais', subjectId:'matematica', unitLabel:'30 flashcards', estMinutes:20,
     desc:'Integrais indefinidas, definidas e técnicas de integração.',
-    topics:[{t:'Integrais Indefinidas',done:false},{t:'Técnicas de Integração',done:false},{t:'Integrais Definidas',done:false},{t:'Aplicações',done:false}]},
-  {id:'algebra-linear', title:'Álgebra Linear', subjectId:'matematica', unitLabel:'24 flashcards', estMinutes:18,
+    topics:[{t:'Integrais indefinidas',done:false},{t:'Técnicas de integração',done:false},{t:'Integrais definidas',done:false},{t:'Aplicações',done:false}]},
+  {id:'algebra-linear', title:'Álgebra linear', subjectId:'matematica', unitLabel:'24 flashcards', estMinutes:18,
     desc:'Matrizes, vetores, sistemas lineares e transformações.',
-    topics:[{t:'Matrizes',done:false},{t:'Determinantes',done:false},{t:'Sistemas Lineares',done:false},{t:'Transformações',done:false}]},
-  {id:'geometria-analitica', title:'Geometria Analítica', subjectId:'matematica', unitLabel:'22 flashcards', estMinutes:16,
+    topics:[{t:'Matrizes',done:false},{t:'Determinantes',done:false},{t:'Sistemas lineares',done:false},{t:'Transformações',done:false}]},
+  {id:'geometria-analitica', title:'Geometria analítica', subjectId:'matematica', unitLabel:'22 flashcards', estMinutes:16,
     desc:'Pontos, retas, circunferências e cônicas no plano cartesiano.',
-    topics:[{t:'Pontos e Retas',done:false},{t:'Circunferências',done:false},{t:'Cônicas',done:false}]},
+    topics:[{t:'Pontos e retas',done:false},{t:'Circunferências',done:false},{t:'Cônicas',done:false}]},
   {id:'leis-newton', title:'Leis de Newton', subjectId:'fisica', unitLabel:'26 flashcards', estMinutes:14,
-    desc:'As três leis fundamentais da dinâmica e suas aplicações.',
-    topics:[{t:'Primeira Lei',done:false},{t:'Segunda Lei',done:false},{t:'Terceira Lei',done:false}]},
+    desc:'As três leis de Newton e onde elas aparecem no dia a dia.',
+    topics:[{t:'Primeira lei',done:false},{t:'Segunda lei',done:false},{t:'Terceira lei',done:false}]},
   {id:'termologia', title:'Termologia', subjectId:'fisica', unitLabel:'24 flashcards', estMinutes:16,
     desc:'Temperatura, calor, dilatação e gases ideais.',
-    topics:[{t:'Temperatura e Calor',done:false},{t:'Dilatação Térmica',done:false},{t:'Gases Ideais',done:false}]},
+    topics:[{t:'Temperatura e calor',done:false},{t:'Dilatação térmica',done:false},{t:'Gases ideais',done:false}]},
   {id:'ditadura-militar', title:'Ditadura Militar', subjectId:'historia', unitLabel:'34 flashcards', estMinutes:18,
-    desc:'O período da Ditadura Militar no Brasil (1964–1985): contexto, governos e consequências.',
-    topics:[{t:'Contexto e Golpe de 1964',done:false},{t:'AI-5 e Repressão',done:false},{t:'Milagre Econômico',done:false},{t:'Abertura e Redemocratização',done:false}]},
+    desc:'O Brasil de 1964 a 1985: como o golpe aconteceu, os governos militares e o que ficou depois.',
+    topics:[{t:'O golpe de 1964',done:false},{t:'AI-5 e repressão',done:false},{t:'Milagre econômico',done:false},{t:'Abertura e redemocratização',done:false}]},
   {id:'revolucao-francesa', title:'Revolução Francesa', subjectId:'historia', unitLabel:'30 flashcards', estMinutes:16,
     desc:'Causas, fases e desdobramentos da Revolução Francesa.',
-    topics:[{t:'Antigo Regime',done:false},{t:'Queda da Bastilha',done:false},{t:'Fase do Terror',done:false},{t:'Era Napoleônica',done:false}]},
+    topics:[{t:'Antigo Regime',done:false},{t:'Queda da Bastilha',done:false},{t:'O Terror',done:false},{t:'Era napoleônica',done:false}]},
   {id:'phrasal-verbs', title:'Phrasal Verbs', subjectId:'ingles', unitLabel:'26 flashcards', estMinutes:12,
-    desc:'Os phrasal verbs mais comuns do inglês e seus contextos de uso.',
-    topics:[{t:'Phrasal Verbs Básicos',done:false},{t:'Separáveis e Inseparáveis',done:false},{t:'Contextos de Uso',done:false}]},
+    desc:'Os phrasal verbs mais usados em inglês e quando usar cada um.',
+    topics:[{t:'Phrasal verbs básicos',done:false},{t:'Separáveis e inseparáveis',done:false},{t:'Quando usar cada um',done:false}]},
 ];
 
 const CATALOG = [...SEED_CONTENTS, ...DISCOVERABLE_SUBJECTS].map(item => ({
@@ -1030,10 +1224,10 @@ function demoModule(contentId, moduleTitle){ return DEMO_LIBRARY[`${contentId}|$
 
 
 /* ---------- Espaços de dados ----------
-   Cada pessoa tem o seu espaço neste navegador: 'v' (visitante) ou 'u:<id da conta Google>'.
+   Cada pessoa tem o seu espaço neste navegador: 'v' (visitante), 'u:<id da conta Google>' ou 'p:<id do perfil local>'.
    As chaves de dados (sf_contents, sf_live_sessions...) são gravadas como sf:<espaço>:<nome>.
    Tema, perfil de login e controles de versão continuam globais. */
-const GLOBAL_KEYS = new Set(['sf_theme','sf_auth_user','sf_data_version','sf_space','sf_legacy_owner','sf_drawers_open']);
+const GLOBAL_KEYS = new Set(['sf_theme','sf_auth_user','sf_local_profiles','sf_data_version','sf_space','sf_legacy_owner','sf_drawers_open']);
 let DATA_SPACE = null;
 function lsKey(key, space){
   const sp = space === undefined ? DATA_SPACE : space;
@@ -1209,7 +1403,7 @@ async function apiRequest(url, { method='GET', params, body, timeoutMs=API_TIMEO
     catch(e){ throw new ApiError(timedOut ? 'timeout' : 'network', timedOut ? 'Tempo esgotado' : 'Sem conexão com o servidor'); }
     if(!res.ok) throw new ApiError('http', `HTTP ${res.status}`);
     try{ return await res.json(); }
-    catch(e){ throw new ApiError(timedOut ? 'timeout' : 'parse', 'Resposta inválida do servidor'); }
+    catch(e){ throw new ApiError(timedOut ? 'timeout' : 'parse', 'O servidor respondeu de um jeito inesperado.'); }
   } finally { clearTimeout(timer); }
 }
 
@@ -1606,14 +1800,17 @@ const AppCtx = createContext(null);
 function useApp(){ return useContext(AppCtx); }
 
 /* ============================================================
-   IDENTIDADE — conta Google ou visitante
+   IDENTIDADE — conta Google, perfil local ou visitante
    Fica fora do AppProvider: trocar de pessoa troca o espaço de dados e remonta o app inteiro com o estado certo.
    ============================================================ */
 const IdentityCtx = createContext(null);
 function useIdentity(){ return useContext(IdentityCtx); }
 const VISITOR_TTL_DAYS = 30;
+const spaceOf = (a)=> a ? (a.kind === 'local' ? 'p:' : 'u:') + a.id : null;
 function loadStoredAuth(){
   const stored = loadLS(AUTH_STORAGE_KEY, null);
+  /* perfil local apagado em outra aba: a sessão deixa de valer */
+  if(stored && stored.kind === 'local' && !loadProfiles().some(p => p.id === stored.id)){ removeLS(AUTH_STORAGE_KEY); return null; }
   if(stored && stored.exp && stored.exp * 1000 > Date.now()){
     if('credential' in stored){
       // versões anteriores guardavam o token do Google; ele não é usado por nenhum serviço, então deixa de ser persistido
@@ -1629,7 +1826,7 @@ function loadStoredAuth(){
 function IdentityProvider({children}){
   const [authUser, setAuthUser] = useState(()=>{
     const a = loadStoredAuth();
-    if(a) claimLegacyData('u:' + a.id);
+    if(a) claimLegacyData(spaceOf(a));
     /* dados de visitante sem uso há mais de 30 dias são descartados */
     const seen = Number(loadLS('sf_last_seen', 0, 'v')) || 0;
     if(seen && Date.now() - seen > VISITOR_TTL_DAYS * 86400000) clearSpace('v');
@@ -1641,15 +1838,18 @@ function IdentityProvider({children}){
   const snapshotRef = useRef(null);   /* o AppProvider registra aqui como ler a tela atual */
 
   const isVisitor = !authUser && visitor;
-  const space = authUser ? 'u:' + authUser.id : (isVisitor ? 'v' : null);
+  const space = authUser ? spaceOf(authUser) : (isVisitor ? 'v' : null);
   setDataSpace(space);   /* síncrono: o estado do app é lido do espaço certo já na montagem */
 
+  /* Entrada comum a conta Google e perfil local: o visitante ativo leva o que fez para o espaço de quem entra. */
   const handleAuth = (authData)=>{
+    const kind = authData.kind === 'local' ? 'local' : 'google';
     const profile = {
-      id: authData.id, name: authData.name, email: authData.email, picture: authData.picture,
+      kind, id: authData.id, name: authData.name, email: kind === 'google' ? (authData.email || '') : '',
+      picture: kind === 'google' ? (authData.picture || '') : '', username: kind === 'local' ? authData.username : undefined,
       exp: Math.floor(Date.now()/1000) + AUTH_SESSION_DAYS * 86400,
     };
-    const target = 'u:' + profile.id;
+    const target = spaceOf(profile);
     claimLegacyData(target);
     const moved = isVisitor ? mergeVisitorInto(target) : null;
     if(!isVisitor) resumeRef.current = null;
@@ -1679,6 +1879,39 @@ function IdentityProvider({children}){
     setVisitor(false);
   };
   const clearVisitorData = ()=>{ clearSpace('v'); signOut(); };
+  /* Perfil local: cria (nome de usuário único neste aparelho) e entra. Devolve a mensagem de erro, se houver. */
+  const createLocalProfile = ({username, name})=>{
+    const list = loadProfiles();
+    const u = normalizeUsername(username);
+    const err = usernameError(u, list);
+    if(err) return err;
+    const display = String(name || '').trim().slice(0, 40) || u;
+    const p = {id: newProfileId(), username: u, name: display, createdAt: Date.now()};
+    saveProfiles([...list, p]);
+    handleAuth({kind:'local', id:p.id, name:p.name, username:p.username});
+    return '';
+  };
+  const enterLocalProfile = (id)=>{
+    const list = loadProfiles();
+    const p = list.find(x => x.id === id);
+    if(p) saveProfiles(list.map(x => x.id === id ? {...x, lastUsedAt: Date.now()} : x));
+    if(p) handleAuth({kind:'local', id:p.id, name:p.name, username:p.username});
+  };
+  const renameLocalProfile = (name)=>{
+    if(!authUser || authUser.kind !== 'local') return;
+    const display = String(name || '').trim().slice(0, 40) || authUser.username;
+    saveProfiles(loadProfiles().map(p => p.id === authUser.id ? {...p, name: display} : p));
+    const next = {...authUser, name: display};
+    saveLS(AUTH_STORAGE_KEY, next);
+    setAuthUser(next);
+  };
+  /* Apaga o perfil local e todos os dados dele neste navegador. */
+  const deleteLocalProfile = ()=>{
+    if(!authUser || authUser.kind !== 'local') return;
+    clearSpace(spaceOf(authUser));
+    saveProfiles(loadProfiles().filter(p => p.id !== authUser.id));
+    signOut();
+  };
   /* Prepara a volta: ao entrar com o Google a partir de uma tela, o app reabre nela (e faz a ação pedida). */
   const prepareResume = (action)=>{
     const snap = snapshotRef.current ? snapshotRef.current() : null;
@@ -1688,6 +1921,7 @@ function IdentityProvider({children}){
   const takeResume = ()=>{ const r = resumeRef.current; resumeRef.current = null; return r; };
 
   const value = {authUser, isVisitor, space, handleAuth, enterVisitor, signOut, clearVisitorData,
+    createLocalProfile, enterLocalProfile, renameLocalProfile, deleteLocalProfile,
     prepareResume, cancelResume, takeResume, snapshotRef, notice, dismissNotice: ()=> setNotice(null)};
   return <IdentityCtx.Provider value={value}>{children}</IdentityCtx.Provider>;
 }
@@ -1699,16 +1933,19 @@ function AppProvider({children}){
   useEffect(()=>{ if(isVisitor) saveLS('sf_last_seen', Date.now()); }, [isVisitor]);
 
   const user = useMemo(() => {
-    if(isVisitor) return {id:'visitante', name:'Visitante', email:'', initials:'', picture:'', visitor:true};
+    if(isVisitor) return {id:'visitante', name:'Visitante', email:'', initials:'', picture:'', visitor:true, kind:'visitor', kindLabel:'Sem perfil'};
     if(!authUser) return null;
-    const name = authUser.name || (authUser.email || '').split('@')[0] || 'Usuário';
-    const initials = name.split(/\s+/).map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'U';
+    const local = authUser.kind === 'local';
+    const name = authUser.name || (authUser.email || '').split('@')[0] || authUser.username || 'Usuário';
     return {
       id: authUser.id,
       name,
-      email: authUser.email || '',
-      initials,
-      picture: authUser.picture || '',
+      email: local ? '' : (authUser.email || ''),
+      username: local ? authUser.username : '',
+      initials: initialsOf(name),
+      picture: local ? '' : (authUser.picture || ''),
+      kind: local ? 'local' : 'google',
+      kindLabel: local ? 'Perfil neste aparelho' : 'Conta Google',
     };
   }, [authUser, isVisitor]);
 
@@ -2029,7 +2266,7 @@ function AppProvider({children}){
     const extra = s.pausedAt ? Date.now()-s.pausedAt : 0;
     return {...s, status:'running', pausedAccumMs:s.pausedAccumMs+extra, pausedAt:null, pauseReason:null};
   });
-  /* D2: o tempo registrado representa atividade real. Se o STUDY vai para segundo plano (outra aba, app minimizado,
+  /* D2: o tempo registrado representa atividade real. Se o Study vai para segundo plano (outra aba, app minimizado,
      tela bloqueada), o foco pausa sozinho e espera a pessoa retomar. */
   useEffect(()=>{
     const onVis = ()=>{ if(document.visibilityState === 'hidden') pauseSession('away'); };
@@ -2441,7 +2678,7 @@ function InlineError({title, hint, onRetry, retryLabel='Tentar novamente', child
 function LoadingCard({children}){
   return (
     <div role="status" aria-live="polite" className="rounded-2xl p-5 mt-4" style={{background:'var(--card-bg)'}}>
-      <p className="text-[12px] text-sf-muted flex items-center justify-center gap-2">{children}</p>
+      <p className="text-[13px] text-sf-muted flex items-center justify-center gap-2 m-0"><BrandLoader size={20}/>{children}</p>
       <div className="mt-4 flex flex-col gap-2.5" aria-hidden="true">
         <span className="sf-skel h-3 w-[88%]"/>
         <span className="sf-skel h-3 w-[72%]"/>
@@ -2470,7 +2707,7 @@ function MissingContent({onBack}){
   return (
     <div className="pt-16 px-5 pb-8">
       <BackButton onClick={onBack}/>
-      <div className="mt-6"><EmptyState title="Conteúdo não encontrado" hint="Ele pode ter sido removido deste dispositivo."/></div>
+      <div className="mt-6"><EmptyState title="Conteúdo não encontrado" hint="Ele pode ter sido apagado deste aparelho."/></div>
     </div>
   );
 }
@@ -2562,13 +2799,13 @@ function ModalShell({onClose, labelledBy, variant='sheet', z=50, children}){
 class ErrorBoundary extends React.Component{
   constructor(props){ super(props); this.state = {error: null}; }
   static getDerivedStateFromError(error){ return {error}; }
-  componentDidCatch(error, info){ console.error('[STUDY] Erro de renderização:', error, info && info.componentStack); }
+  componentDidCatch(error, info){ console.error('[Study] Erro de renderização:', error, info && info.componentStack); }
   render(){
     if(this.state.error){
       return (
         <div role="alert" className="pt-24 px-5 text-center">
           <p className="text-[18px] font-bold text-sf-text">Algo deu errado nesta tela</p>
-          <p className="text-[13px] text-sf-muted mt-2 leading-relaxed">Seus dados continuam salvos neste dispositivo. Volte ao início para continuar.</p>
+          <p className="text-[13px] text-sf-muted mt-2 leading-relaxed">Seus dados continuam salvos neste aparelho. Volte ao início para continuar.</p>
           <button type="button" onClick={()=>{ this.setState({error:null}); if(this.props.onReset) this.props.onReset(); }}
             className="sf-btn sf-btn-primary mt-5 h-12 px-6 text-[14px] font-semibold">Voltar ao início</button>
         </div>
@@ -2647,249 +2884,277 @@ function SubjectIcon({subjectId, size=22}){
 }
 
 /* ============================================================
-   TELA DE LOGIN
-   A marca STUDY é digitada letra a letra, com ritmo natural, e em seguida
-   dá lugar às boas-vindas e ao formulário. Regras:
-   - toca uma única vez por carregamento da página (re-render, troca de tema e
-     remontagem mostram o estado final, sem reiniciar);
-   - nunca bloqueia: o formulário está montado e utilizável desde o primeiro quadro;
-     qualquer toque, clique ou tecla conclui a sequência na hora;
-   - com prefers-reduced-motion a apresentação é estática;
-   - leitores de tela recebem apenas o título "STUDY" (as letras são decorativas).
+   ENTRADA
+   Três modalidades, com comportamentos diferentes:
+   - Conta Google: identifica a pessoa pelo Google; dados neste aparelho no espaço 'u:<id>'.
+   - Perfil local: nome de usuário escolhido aqui, sem e-mail; dados neste aparelho no espaço 'p:<id>'.
+     Usa todos os recursos, inclusive os com IA.
+   - Visitante: sem cadastro; trilhas de exemplo; progresso descartado após 30 dias sem uso;
+     ao criar um perfil ou entrar com o Google, o que o visitante fez vai junto.
    ============================================================ */
-let __brandPlayed = false;
-const BRAND_WORD = 'STUDY';
-const BRAND_DELAYS = [380, 165, 140, 190, 150];   // ms antes de cada letra (ritmo irregular, porém determinístico)
-const BRAND_HOLD = 480;                            // ms com o cursor parado antes de revelar o restante
+const GOOGLE_G = (
+  <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+  </svg>
+);
 
-function useBrandSequence(){
-  const [instant] = useState(()=> __brandPlayed || prefersReducedMotion());
-  const [typed, setTyped] = useState(instant ? BRAND_WORD.length : 0);
-  const [done, setDone] = useState(instant);
-  const [fast, setFast] = useState(instant);
-  const timers = useRef([]);
-  const doneRef = useRef(instant);
-  const clear = ()=>{ timers.current.forEach(clearTimeout); timers.current = []; };
-  const finish = useCallback(()=>{
-    if(doneRef.current) return;
-    doneRef.current = true; __brandPlayed = true;
-    timers.current.forEach(clearTimeout); timers.current = [];
-    setFast(true); setTyped(BRAND_WORD.length); setDone(true);
-  }, []);
-  useEffect(()=>{
-    if(instant){ __brandPlayed = true; return; }
-    let t = 0;
-    BRAND_DELAYS.forEach((delay, i)=>{ t += delay; timers.current.push(setTimeout(()=> setTyped(i + 1), t)); });
-    timers.current.push(setTimeout(()=>{ doneRef.current = true; __brandPlayed = true; setDone(true); }, t + BRAND_HOLD));
-    /* qualquer toque, clique, tecla ou foco, em qualquer lugar da página, conclui a sequência na hora */
-    const skip = ()=> finish();
-    const evs = ['pointerdown', 'keydown', 'focusin'];
-    evs.forEach(e => document.addEventListener(e, skip, true));
-    return ()=>{ clear(); evs.forEach(e => document.removeEventListener(e, skip, true)); };
-  }, []);
-  return {typed, done, fast, instant, finish};
-}
-
-function TypedBrand({typed, done, caret}){
-  return (
-    <h1 className="sf-brand">
-      <span className="sr-only">{BRAND_WORD}</span>
-      <span className="inline-flex" aria-hidden="true">
-        {BRAND_WORD.split('').map((ch, i)=>{
-          const cur = caret && i === typed - 1;
-          return <span key={i} className={`sf-brand-letter${i < typed ? ' is-on' : ''}${cur ? ' is-cur' : ''}${cur && done ? ' is-fading' : ''}`}>{ch}</span>;
-        })}
-      </span>
-    </h1>
-  );
-}
-
-/* Botão oficial do Google (Google Identity Services). Usado no login, na folha de conta e no Perfil do visitante.
-   O tema do botão acompanha o do app. Se o script do Google não carregar, avisa em `onUnavailable`. */
-function GoogleSignInButton({ onAuth, onUnavailable, onLoading }){
-  const btnRef = useRef(null);
-  const drawRef = useRef(null);
+/* Botão "Continuar com o Google" com desenho próprio (o botão pronto do Google é um iframe que não aceita estilo).
+   Fluxo: Google Identity Services, cliente de token OAuth (janela do Google) → /userinfo → mesmo `sub` de antes,
+   então os dados já salvos por conta continuam no mesmo espaço. O token não é guardado. */
+function GoogleSignInButton({ onAuth, onUnavailable, onLoading, label='Continuar com o Google' }){
+  const [state, setState] = useState(GOOGLE_CLIENT_ID ? 'init' : 'setup');   // init | ready | loading | error | unavailable | setup
+  const clientRef = useRef(null);
   const authRef = useRef(onAuth); authRef.current = onAuth;
-  const {resolved} = useTheme();
-  const themeRef = useRef(resolved);
-  themeRef.current = resolved;
-  const [error, setError] = useState('');
+  const timeoutRef = useRef(null);
 
-  useEffect(() => {
-    if(!GOOGLE_CLIENT_ID){ setError('setup'); return; }
-    let cancelled = false;
-    let attempts = 0;
-    let attachTimer = null;
-    const draw = () => {
-      if(!btnRef.current || !window.google?.accounts?.id) return;
-      const w = Math.max(200, Math.min(340, Math.floor(btnRef.current.clientWidth || 320)));
-      window.google.accounts.id.renderButton(btnRef.current, {
-        theme: themeRef.current === 'light' ? 'outline' : 'filled_black',
-        size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'left', width: w,
-      });
-      clearTimeout(attachTimer);
-      attachTimer = setTimeout(() => {
-        if(cancelled || !btnRef.current) return;
-        const inner = btnRef.current.querySelector('div[role="button"]') || btnRef.current.querySelector('button');
-        if(inner && onLoading) inner.addEventListener('click', () => onLoading());
-      }, 100);
+  useEffect(()=>{
+    if(!GOOGLE_CLIENT_ID) return;
+    let n = 0;
+    const onToken = async (resp)=>{
+      clearTimeout(timeoutRef.current);
+      if(!resp || resp.error || !resp.access_token){ setState(resp && resp.error === 'access_denied' ? 'ready' : 'error'); return; }
+      try{
+        const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {headers:{Authorization:'Bearer ' + resp.access_token}});
+        if(!r.ok) throw new Error('userinfo ' + r.status);
+        const p = await r.json();
+        if(!p || !p.sub) throw new Error('sem sub');
+        authRef.current({kind:'google', id:p.sub, name:p.name || (p.email || '').split('@')[0] || 'Usuário', email:p.email || '', picture:p.picture || ''});
+      }catch(e){ setState('error'); }
     };
-    drawRef.current = draw;
-    const check = setInterval(() => {
-      attempts++;
-      if(cancelled){ clearInterval(check); return; }
-      if(window.google?.accounts?.id){
-        clearInterval(check);
+    const t = setInterval(()=>{
+      n++;
+      if(window.google?.accounts?.oauth2){
+        clearInterval(t);
         try{
-          window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => {
-              const payload = decodeJwt(response.credential);
-              if(!payload){ setError('Não foi possível ler a credencial do Google.'); return; }
-              authRef.current({
-                id: payload.sub,
-                name: payload.name || (payload.email || '').split('@')[0] || 'Usuário',
-                email: payload.email || '', picture: payload.picture || '',
-                exp: payload.exp || (Math.floor(Date.now()/1000) + 3600),
-              });
-            },
-            auto_select: false,
-            cancel_on_tap_outside: true,
+          clientRef.current = window.google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID, scope: 'openid email profile', callback: onToken,
+            error_callback: (err)=>{ clearTimeout(timeoutRef.current); setState(err && (err.type === 'popup_closed' || err.type === 'popup_failed_to_open') ? (err.type === 'popup_closed' ? 'ready' : 'error') : 'error'); },
           });
-          draw();
-        }catch(e){ setError('Falha ao iniciar o login do Google.'); if(onUnavailable) onUnavailable(); }
-      } else if(attempts > 50){
-        clearInterval(check);
-        setError('Não foi possível carregar o login do Google.');
-        if(onUnavailable) onUnavailable();
+          setState('ready');
+        }catch(e){ setState('unavailable'); if(onUnavailable) onUnavailable(); }
+      }else if(n > 50){
+        clearInterval(t); setState('unavailable'); if(onUnavailable) onUnavailable();
       }
     }, 100);
-    return () => { cancelled = true; clearInterval(check); clearTimeout(attachTimer); drawRef.current = null; };
+    return ()=>{ clearInterval(t); clearTimeout(timeoutRef.current); };
   }, []);
 
-  const firstTheme = useRef(true);
-  useEffect(()=>{
-    if(firstTheme.current){ firstTheme.current = false; return; }
-    if(drawRef.current) drawRef.current();
-  }, [resolved]);
+  const start = ()=>{
+    if(!clientRef.current) return;
+    setState('loading'); if(onLoading) onLoading();
+    /* se a janela do Google for fechada sem resposta, o botão não fica preso em "Conectando" */
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(()=> setState(s => s === 'loading' ? 'ready' : s), 60000);
+    try{ clientRef.current.requestAccessToken({prompt:''}); }catch(e){ setState('error'); }
+  };
 
-  if(error === 'setup'){
+  if(state === 'setup'){
     return (
       <div className="rounded-2xl p-4" style={{background:'var(--warning-tint)', border:'1px solid var(--warning-border)'}}>
-        <p className="text-[12px] text-sf-warning font-semibold">Configuração necessária</p>
-        <p className="text-[11px] text-sf-muted mt-1 leading-relaxed">Defina <code>GOOGLE_CLIENT_ID</code> no início do script com o ID criado no Google Cloud Console.</p>
+        <p className="text-[13px] text-sf-warning font-semibold m-0">Configuração necessária</p>
+        <p className="text-[13px] text-sf-muted mt-1 mb-0 leading-relaxed">Defina <code>GOOGLE_CLIENT_ID</code> no início do script com o ID criado no Google Cloud Console.</p>
       </div>
     );
   }
-  if(error){
-    return (
-      <div role="alert" className="rounded-2xl p-4 text-left" style={{background:'var(--bg-elevated)'}}>
-        <p className="text-[15px] leading-[20px] font-semibold text-sf-text m-0">{error}</p>
-        <p className="text-[14px] leading-[20px] text-sf-muted mt-1 mb-0">Pode ser a conexão ou um bloqueador de conteúdo. Tente recarregar a página.</p>
-        <button type="button" onClick={()=>window.location.reload()} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-1 text-[15px] font-semibold">Recarregar página</button>
-      </div>
-    );
-  }
-  return <div ref={btnRef} className="flex justify-center min-h-[44px] w-full" aria-label="Continuar com o Google"/>;
-}
-
-function LoginScreen(){
-  const {handleAuth, enterVisitor} = useIdentity();
-  const [status, setStatus] = useState('idle');
-  const {typed, done, fast, instant} = useBrandSequence();
-
-  /* se o popup do Google for fechado sem concluir, o aviso "Conectando..." não fica preso (só visual) */
-  useEffect(()=>{
-    if(status !== 'loading') return;
-    const t = setTimeout(()=> setStatus('idle'), 30000);
-    return ()=> clearTimeout(t);
-  }, [status]);
-
-  const devBypass = DEV_MODE && !GOOGLE_CLIENT_ID;
-  const on = done ? ' is-on' : '';
-
+  const loading = state === 'loading';
   return (
-    <div className="device-wrap">
-      <div className={`device sf-login flex flex-col${fast ? ' is-instant' : ''}`} style={{paddingBottom:0}}>
-
-        <main className="flex-1 flex flex-col items-center justify-center px-6 pt-10 pb-6">
-
-          <TypedBrand typed={typed} done={done} caret={!instant}/>
-          <div className={`sf-brand-rule${on}`} aria-hidden="true"/>
-
-          <div className={`sf-reveal text-center mt-7${on}`} style={{'--d':'0ms'}}>
-            <h2 className="sf-ed-title text-sf-text">Bem-vindo</h2>
-            <p className="text-[15px] leading-[20px] text-sf-muted mt-2 max-w-[320px] mx-auto">Organize matérias, siga trilhas de estudo e acompanhe seu foco.</p>
-          </div>
-
-          <div className={`sf-reveal mt-9 w-full max-w-[340px]${on}`} style={{'--d':'140ms'}}>
-            <div aria-busy={status === 'loading' ? 'true' : undefined}>
-              {devBypass ? (
-                <button type="button" onClick={()=> handleAuth({id:'dev-user', name:'Desenvolvedor', email:'dev@local', picture:'', exp: Math.floor(Date.now()/1000) + 3600})}
-                  className="sf-btn sf-btn-secondary w-full h-12 text-[14px] font-semibold" style={{border:'1px dashed var(--warning-outline)'}}>
-                  Entrar em modo dev (sem autenticação)
-                </button>
-              ) : (
-                <GoogleSignInButton onAuth={handleAuth} onLoading={()=>setStatus('loading')}/>
-              )}
-              {status === 'loading' && (
-                <p role="status" className="text-center text-[13px] text-sf-accent mt-3 flex items-center justify-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-full border-2 border-sf-accent border-t-transparent sf-spinner"/>
-                  Conectando...
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 my-5" aria-hidden="true">
-              <span className="flex-1 h-px" style={{background:'var(--border)'}}/>
-              <span className="text-[13px] text-sf-faint">ou</span>
-              <span className="flex-1 h-px" style={{background:'var(--border)'}}/>
-            </div>
-
-            <button type="button" onClick={enterVisitor} className="sf-btn sf-btn-secondary w-full h-12 text-[15px] font-semibold">
-              Experimentar sem conta
-            </button>
-            <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-3">
-              Explore com trilhas de exemplo. Seu progresso fica só neste navegador, e você pode entrar com o Google depois sem perder nada.
-            </p>
-          </div>
-        </main>
-
-        <p className={`sf-reveal text-center text-[13px] leading-[18px] text-sf-faint px-6 pb-8 max-w-[360px] mx-auto${on}`} style={{'--d':'320ms'}}>
-          Com ou sem conta, seus dados ficam salvos neste aparelho. O STUDY não sincroniza entre aparelhos.
-        </p>
-      </div>
+    <div>
+      <button type="button" className="sf-gbtn" onClick={start} disabled={state === 'init' || loading || state === 'unavailable'}
+        aria-busy={loading ? 'true' : undefined}>
+        {GOOGLE_G}<span>{loading ? 'Conectando…' : label}</span>
+      </button>
+      {state === 'unavailable' && <p role="alert" className="text-[13px] leading-[18px] text-sf-muted mt-2 mb-0 text-center">O login do Google não carregou. Pode ser a conexão ou um bloqueador de conteúdo. <button type="button" className="sf-link-btn" onClick={()=>window.location.reload()}>Recarregar</button></p>}
+      {state === 'error' && <p role="alert" className="text-[13px] leading-[18px] text-sf-error mt-2 mb-0 text-center">Não foi possível entrar com o Google. Tente de novo.</p>}
     </div>
   );
 }
 
-/* Folha "precisa de conta": o quê, por quê e como continuar. Nunca bloqueia a navegação. */
+const IconUserPlus = ({size=20,...p}) => <S size={size} {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></S>;
+const IconCompass  = ({size=20,...p}) => <S size={size} {...p}><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></S>;
+
+/* Sugere um nome de usuário a partir do nome: "Ana Souza" → "ana.souza". */
+function suggestUsername(name){
+  return String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 20).replace(/\.+$/, '');
+}
+
+/* Perfil neste aparelho: primeiro o nome (como a pessoa quer ser chamada), depois o nome de usuário,
+   que já vem sugerido a partir do nome e pode ser trocado. Sem e-mail e sem senha. */
+function LocalProfileForm({onCreate, onCancel, submitLabel='Criar perfil e começar'}){
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [userEdited, setUserEdited] = useState(false);
+  const [error, setError] = useState('');
+  const [touched, setTouched] = useState(false);
+  const nameRef = useRef(null), userRef = useRef(null);
+  useEffect(()=>{ if(nameRef.current) nameRef.current.focus({preventScroll:true}); }, []);
+  /* a sugestão nunca nasce repetida: se "ana.souza" já existe aqui, sugere "ana.souza2" */
+  const effectiveUser = useMemo(()=>{
+    if(userEdited) return username;
+    const base = suggestUsername(name); if(!base) return '';
+    const taken = new Set(loadProfiles().map(p => p.username));
+    if(!taken.has(base)) return base;
+    for(let n = 2; n < 100; n++){ const c = base.slice(0, 20 - String(n).length) + n; if(!taken.has(c)) return c; }
+    return base;
+  }, [userEdited, username, name]);
+  const live = touched ? usernameError(normalizeUsername(effectiveUser)) : '';
+  const shown = error || live;
+  const submit = (e)=>{
+    e.preventDefault();
+    setTouched(true);
+    const err = onCreate({username: effectiveUser, name});
+    if(err){ setError(err); if(userRef.current) userRef.current.focus(); }
+  };
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col">
+      <FieldLabel htmlFor="lp-name" optional>Como quer ser chamado?</FieldLabel>
+      <input id="lp-name" ref={nameRef} value={name} maxLength={40} autoComplete="nickname" placeholder="Seu nome ou apelido"
+        onChange={e=>{ setName(e.target.value); setError(''); }}
+        className="sf-fieldbox h-12 rounded-xl px-3.5 text-[16px] text-sf-text outline-none" style={{fontFamily:'inherit'}}/>
+
+      <FieldLabel htmlFor="lp-user">Nome de usuário</FieldLabel>
+      <label className="sf-fieldbox sf-at h-12 rounded-xl cursor-text">
+        <span aria-hidden="true">@</span>
+        <input id="lp-user" ref={userRef} value={effectiveUser} placeholder="ana.souza"
+          onChange={e=>{ setUsername(e.target.value.replace(/\s/g, '')); setUserEdited(true); setError(''); }}
+          onBlur={()=> effectiveUser && setTouched(true)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck="false" maxLength={24}
+          aria-invalid={shown ? 'true' : undefined} aria-describedby={shown ? 'lp-user-err' : 'lp-user-hint'}
+          className="bg-transparent border-0 outline-none text-[16px] text-sf-text flex-1 min-w-0 h-11 pl-1 pr-3.5" style={{fontFamily:'inherit'}}/>
+      </label>
+      {shown
+        ? <p id="lp-user-err" role="alert" className="text-[13px] leading-[18px] text-sf-error mt-1.5 mb-0">{shown}</p>
+        : <p id="lp-user-hint" className="text-[13px] leading-[18px] text-sf-faint mt-1.5 mb-0">É com ele que você acha seu perfil depois. Letras, números, ponto ou sublinhado.</p>}
+
+      <p className="text-[13px] leading-[18px] text-sf-muted mt-5 mb-0">O perfil fica salvo só neste navegador. Quem usar este navegador também consegue abri-lo.</p>
+      <button type="submit" className="sf-btn sf-btn-primary w-full h-12 mt-5 text-[15px]">{submitLabel}</button>
+      {onCancel && <button type="button" onClick={onCancel} className="sf-btn sf-btn-ghost w-full h-11 mt-2 text-[15px] font-semibold">Voltar</button>}
+    </form>
+  );
+}
+
+function ProfileChip({p, size=40}){
+  return <span aria-hidden="true" className="rounded-full flex items-center justify-center font-semibold shrink-0" style={{width:size, height:size, fontSize:Math.round(size*.35), background:'var(--brand-tint-2)', color:'var(--blue-300)'}}>{initialsOf(p.name)}</span>;
+}
+
+/* Linha de escolha da entrada: ícone, o que é e o que acontece. */
+function ChoiceRow({Icon, title, desc, onClick, lead}){
+  return (
+    <button type="button" className="sf-choice" onClick={onClick}>
+      {lead || <span className="sf-choice-icon" aria-hidden="true"><Icon size={20}/></span>}
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] leading-[20px] font-semibold text-sf-text">{title}</span>
+        <span className="block text-[13px] leading-[18px] text-sf-muted mt-0.5">{desc}</span>
+      </span>
+      <span className="text-sf-faint shrink-0" aria-hidden="true"><IconChevronR size={16}/></span>
+    </button>
+  );
+}
+
+function LoginScreen(){
+  const {handleAuth, enterVisitor, createLocalProfile, enterLocalProfile} = useIdentity();
+  const [mode, setMode] = useState('start');   // start | create | pick
+  const [ready, setReady] = useState(()=> !window.__sfIntroActive);
+  useEffect(()=>{
+    if(ready) return;
+    const on = ()=> setReady(true);
+    window.addEventListener('sf-intro-done', on);
+    return ()=> window.removeEventListener('sf-intro-done', on);
+  }, [ready]);
+  const profiles = useMemo(()=> loadProfiles().sort((a,b)=> (b.lastUsedAt||b.createdAt||0) - (a.lastUsedAt||a.createdAt||0)), [mode]);
+  const recent = profiles[0];
+  const titleRef = useRef(null);
+  useEffect(()=>{ if(mode !== 'start' && titleRef.current) titleRef.current.focus({preventScroll:true}); }, [mode]);
+  const back = <button type="button" onClick={()=>setMode('start')} className="sf-btn sf-btn-ghost sf-auth-back h-11 px-3 text-[15px] font-semibold"><IconArrowL size={18}/> Voltar</button>;
+
+  return (
+    <div className={`sf-auth${ready ? ' is-ready' : ''}`}>
+      <main className="sf-auth-card" aria-labelledby="auth-title" key={mode}>
+        <BrandLockup size={40} className="sf-auth-logo" role="img" aria-label={BRAND_NAME}/>
+
+        {mode === 'start' && (
+          <>
+            <h1 id="auth-title" className="sf-auth-title">{recent ? `Que bom te ver, ${recent.name.split(' ')[0]}` : 'Vamos estudar?'}</h1>
+            <p className="sf-auth-sub">Siga trilhas de estudo e veja quanto você já avançou.</p>
+            <div className="sf-auth-actions">
+              {recent && (
+                <>
+                  <ChoiceRow lead={<ProfileChip p={recent}/>} title={`Continuar como ${recent.name}`} desc={`@${recent.username} · perfil neste aparelho`} onClick={()=>enterLocalProfile(recent.id)}/>
+                  {profiles.length > 1 && <button type="button" onClick={()=>setMode('pick')} className="sf-btn sf-btn-ghost w-full h-11 mt-1 text-[14px] font-semibold">Entrar com outro perfil</button>}
+                  <div className="sf-auth-sep" role="separator" aria-label="ou"><span aria-hidden="true">ou</span></div>
+                </>
+              )}
+              <GoogleSignInButton onAuth={handleAuth}/>
+              {!recent && <div className="sf-auth-sep" role="separator" aria-label="ou"><span aria-hidden="true">ou</span></div>}
+              <div className={`flex flex-col gap-2${recent ? ' mt-3' : ''}`}>
+                <ChoiceRow Icon={IconUserPlus} title={recent ? 'Criar outro perfil' : 'Criar um perfil'} desc="Sem e-mail. Seu progresso fica salvo neste aparelho." onClick={()=>setMode('create')}/>
+                <ChoiceRow Icon={IconCompass} title="Só dar uma olhada" desc="Sem cadastro. O progresso some após 30 dias sem uso." onClick={enterVisitor}/>
+              </div>
+            </div>
+          </>
+        )}
+
+        {mode === 'create' && (
+          <>
+            {back}
+            <h1 id="auth-title" ref={titleRef} tabIndex={-1} className="sf-auth-title" style={{textAlign:'left'}}>Criar seu perfil</h1>
+            <p className="sf-auth-sub" style={{textAlign:'left'}}>Sem e-mail e sem senha. Leva menos de um minuto.</p>
+            <LocalProfileForm onCreate={createLocalProfile}/>
+          </>
+        )}
+
+        {mode === 'pick' && (
+          <>
+            {back}
+            <h1 id="auth-title" ref={titleRef} tabIndex={-1} className="sf-auth-title" style={{textAlign:'left'}}>Quem vai estudar?</h1>
+            <ul className="list-none p-0 m-0 mt-6 flex flex-col gap-2">
+              {profiles.map(p => (
+                <li key={p.id}><ChoiceRow lead={<ProfileChip p={p}/>} title={p.name} desc={`@${p.username}`} onClick={()=>enterLocalProfile(p.id)}/></li>
+              ))}
+            </ul>
+            <button type="button" onClick={()=>setMode('create')} className="sf-btn sf-btn-ghost w-full h-11 mt-3 text-[15px] font-semibold"><IconPlus size={16}/> Criar outro perfil</button>
+          </>
+        )}
+      </main>
+      <p className="sf-auth-note">Tudo fica salvo neste navegador. O Study não sincroniza entre aparelhos.</p>
+    </div>
+  );
+}
+
+/* Folha "precisa de um perfil": o quê, por quê e como continuar. Nunca bloqueia a navegação. */
 const ACCOUNT_FEATURES = {
-  criar: {title:'Criar seus próprios conteúdos', why:'A trilha de um conteúdo novo é montada por IA e fica guardada no seu perfil. Para isso, entre com o Google.'},
-  adicionar: {title:'Adicionar conteúdos do catálogo', why:'Cada conteúdo do catálogo ganha uma trilha montada por IA, guardada no seu perfil. Para isso, entre com o Google.'},
-  materia: {title:'Criar matérias', why:'Matérias próprias organizam os conteúdos que você cria, e isso fica guardado no seu perfil. Para isso, entre com o Google.'},
-  entrar: {title:'Entrar com o Google', why:'Você continua de onde está, com tudo o que já fez como visitante.'},
+  criar: {title:'Criar seu próprio conteúdo', why:'O Study monta a trilha com IA e guarda no seu perfil. Para continuar, crie um perfil ou entre com o Google.'},
+  adicionar: {title:'Adicionar este conteúdo', why:'O Study monta a trilha com IA e guarda no seu perfil. Para continuar, crie um perfil ou entre com o Google.'},
+  materia: {title:'Criar uma matéria', why:'Suas matérias ficam guardadas no seu perfil. Para continuar, crie um perfil ou entre com o Google.'},
+  entrar: {title:'Guardar seu progresso', why:'Crie um perfil ou entre com o Google. Você continua de onde parou.'},
 };
 function AccountSheet(){
   const {accountAsk, closeAccountAsk} = useApp();
-  const {handleAuth} = useIdentity();
-  const [unavailable, setUnavailable] = useState(false);
+  const {handleAuth, createLocalProfile} = useIdentity();
+  const [creating, setCreating] = useState(false);
+  useEffect(()=>{ if(!accountAsk) setCreating(false); }, [accountAsk]);
   if(!accountAsk) return null;
   const f = ACCOUNT_FEATURES[accountAsk.feature] || ACCOUNT_FEATURES.entrar;
   const isEntrar = accountAsk.feature === 'entrar';
   return (
     <ModalShell onClose={closeAccountAsk} labelledBy="acc-title" z={70}>
-      {!isEntrar && <p className="text-[13px] leading-[16px] font-semibold text-sf-muted m-0 flex items-center gap-1.5"><IconLock size={13}/> Precisa de uma conta</p>}
-      <h2 id="acc-title" className="text-[20px] leading-[26px] font-bold text-sf-text mt-2 mb-0">{f.title}</h2>
-      <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">{f.why}</p>
-      {!isEntrar && <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">O que você estudou como visitante vai junto para a conta, e você volta para esta tela.</p>}
-      <div className="mt-5">
-        <GoogleSignInButton onAuth={handleAuth} onUnavailable={()=>setUnavailable(true)}/>
-      </div>
-      <button type="button" onClick={closeAccountAsk} className="sf-btn sf-btn-ghost w-full mt-3 h-11 text-[15px] font-semibold">
-        {isEntrar ? 'Agora não' : 'Continuar explorando'}
-      </button>
-      {unavailable && <span className="sr-only-live" role="status">Login do Google indisponível no momento.</span>}
+      <h2 id="acc-title" className="text-[20px] leading-[26px] font-bold text-sf-text mt-1 mb-0">{creating ? 'Criar seu perfil' : f.title}</h2>
+      {creating ? (
+        <>
+          <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">O que você fez até agora vai junto, e você volta para esta tela.</p>
+          <LocalProfileForm onCreate={createLocalProfile} onCancel={()=>setCreating(false)} submitLabel="Criar perfil e continuar"/>
+        </>
+      ) : (
+        <>
+          <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">{f.why}</p>
+          {!isEntrar && <p className="text-[15px] leading-[21px] text-sf-muted mt-2 mb-0">Você não perde nada: o que fez até agora vai junto.</p>}
+          <div className="mt-5"><GoogleSignInButton onAuth={handleAuth}/></div>
+          <div className="mt-3"><ChoiceRow Icon={IconUserPlus} title="Criar um perfil" desc="Sem e-mail. Fica salvo neste aparelho." onClick={()=>setCreating(true)}/></div>
+          <button type="button" onClick={closeAccountAsk} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[15px] font-semibold">Agora não</button>
+        </>
+      )}
     </ModalShell>
   );
 }
@@ -3010,7 +3275,7 @@ function SubjectPreviewModal({ item, onClose }){
         ) : (
           <>
             <button type="button" onClick={handleAdd} className="sf-btn sf-btn-primary w-full h-12 text-[14px] inline-flex items-center justify-center gap-2">{isVisitor && <IconLock size={14}/>}Adicionar em {subjName(item.subjectId)}</button>
-            {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 text-center">Adicionar conteúdos pede uma conta Google.</p>}
+            {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0 text-center">Adicionar conteúdos pede um perfil local ou uma conta Google.</p>}
             <button type="button" onClick={onClose} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Fechar</button>
           </>
         )}
@@ -3071,7 +3336,7 @@ function mascotLine(mood, name, streak, next, milestone){
     case 'celebrate': return `Marco novo: ${milestone ? milestone.t : `${streak} dias`}, ${streak} ${plural(streak,'dia seguido','dias seguidos')}. Que constância bonita!`;
     case 'happy': return next ? `Estudo de hoje feito. ${next.d - streak === 1 ? 'Falta 1 dia' : `Faltam ${next.d - streak} dias`} para "${next.t}".` : 'Estudo de hoje feito. Você já passou por todos os marcos.';
     case 'waiting': return `Sua sequência de ${streak} ${plural(streak,'dia','dias')} continua. Uma sessão curta hoje já conta.`;
-    case 'returning': return 'Que bom te ver de novo. Uma sessão curta recomeça a sequência, no seu ritmo.';
+    case 'returning': return 'Que bom te ver de novo. Uma sessão curta já recomeça a sequência.';
     default: return `Oi! Eu sou ${name}. Sua primeira sessão de foco acende a nossa trilha.`;
   }
 }
@@ -3093,7 +3358,7 @@ function useMascot(){
     totalMin: (liveSessions || []).reduce((a,x)=> a + (x.durationMin || 0), 0)};
 }
 
-/* Personagens originais desenhados para o STUDY (formas simples, paleta do app). Não são mascotes genéricos de IA. */
+/* Personagens originais desenhados para o Study (formas simples, paleta do app). Não são mascotes genéricos de IA. */
 function MascotSvg({kind='lume', color='azul', acc='nenhum', mood='new', stage=0, size=120, title}){
   const col = MASCOT_COLORS.find(c=>c.k===color) || MASCOT_COLORS[0];
   const ink = '#0B1220';
@@ -3232,7 +3497,7 @@ function MascoteScreen(){
 
       <section className="mt-8" aria-labelledby="mz-trail">
         <SectionTitle id="mz-trail">Trilha da ofensiva</SectionTitle>
-        <p className="text-[14px] leading-[18px] text-sf-muted mt-1">Conta um dia quando há pelo menos uma sessão de foco registrada. A evolução de {m.name} fica com você mesmo se a sequência recomeçar.</p>
+        <p className="text-[14px] leading-[18px] text-sf-muted mt-1">Cada dia com pelo menos uma sessão de foco conta. A evolução de {m.name} fica com você mesmo se a sequência recomeçar.</p>
         <ol className="list-none p-0 m-0 mt-4 relative">
           <li aria-hidden="true" className="absolute left-[19px] top-4 bottom-4 w-[2px]" style={{background:'var(--border)'}}/>
           {STREAK_MILESTONES.map((x,i)=>{
@@ -3368,7 +3633,7 @@ function HomeScreen(){
       </p>
       {isVisitor && (
         <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0">
-          Modo visitante · <button type="button" onClick={()=>askAccount('entrar')} className="sf-link-btn">Entrar com Google</button>
+          Modo visitante · <button type="button" onClick={()=>askAccount('entrar')} className="sf-link-btn">Guardar meu progresso</button>
         </p>
       )}
     </header>
@@ -3402,7 +3667,7 @@ function HomeScreen(){
           <div className="mt-4">
             <p className="text-[14px] leading-[20px] text-sf-muted m-0 flex items-center gap-1.5">
               <span className="inline-flex" aria-hidden="true"><NextIcon size={15}/></span>
-              {started ? 'Próximo' : 'Primeiro'} · {MODULE_META[nextType].label}
+              {started ? 'A seguir' : 'Primeiro módulo'} · {MODULE_META[nextType].label}
             </p>
             <p className="sf-ed-content text-sf-text mt-1 mb-0">{nextTopic.t}</p>
           </div>
@@ -3419,7 +3684,7 @@ function HomeScreen(){
     resumeBlock = (
       <section aria-labelledby="h-comece" className="rounded-[20px] p-4" style={{background:'var(--bg-surface)'}}>
         <h2 id="h-comece" className="text-[17px] leading-[23px] font-semibold text-sf-text m-0">Comece pelo primeiro conteúdo</h2>
-        <p className="text-[15px] leading-[21px] text-sf-muted mt-1.5 mb-0">Escolha um tema e o STUDY monta uma trilha com videoaulas, leitura, flashcards e uma avaliação no fim.</p>
+        <p className="text-[15px] leading-[21px] text-sf-muted mt-1.5 mb-0">Escolha um tema e o Study monta uma trilha com videoaulas, leitura, flashcards e uma avaliação no fim.</p>
         <button type="button" onClick={()=>goTab('estudar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]">Explorar conteúdos</button>
       </section>
     );
@@ -3520,7 +3785,7 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
   const orphan = sid === ORPHAN_SUBJECT;
   const name = orphan ? 'Sem matéria' : subjName(sid);
   const line = sum.n === 0
-    ? 'Ainda não há conteúdos cadastrados.'
+    ? 'Nenhum conteúdo ainda.'
     : `${sum.n} ${plural(sum.n, 'conteúdo', 'conteúdos')} · ${sum.doneN} ${plural(sum.doneN, 'concluído', 'concluídos')}`;
   return (
     <li className="sf-row-div">
@@ -3577,7 +3842,7 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
             )}
             {suggestions.length > 0 && (
               <div className="mt-2">
-                <p className="text-[13px] leading-[18px] font-semibold text-sf-muted">Sugestões do STUDY</p>
+                <p className="text-[13px] leading-[18px] font-semibold text-sf-muted">Sugestões do Study</p>
                 <ul className="list-none p-0 m-0 mt-1">
                   {suggestions.map(d => (
                     <li key={d.id}>
@@ -3629,14 +3894,14 @@ function ExplorarScreen(){
   });
 
   return (
-    <div className="pt-16 px-5 pb-8">
+    <div className="sf-wide pt-16 px-5 pb-8">
       <div className="flex items-start justify-between gap-3">
         <ScreenTitle>Explorar</ScreenTitle>
         <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0 inline-flex items-center gap-1.5"
-          aria-label={isVisitor ? 'Criar conteúdo (pede conta Google)' : undefined}>{lock}Criar conteúdo</button>
+          aria-label={isVisitor ? 'Criar conteúdo (pede um perfil)' : undefined}>{lock}Criar conteúdo</button>
       </div>
 
-      <label className="sf-fieldbox mt-5 h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
+      <label className="sf-fieldbox sf-subj-search mt-5 h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
         <span className="text-sf-muted inline-flex" aria-hidden="true"><IconSearch size={20}/></span>
         <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar conteúdos ou matérias"
           aria-label="Buscar conteúdos ou matérias" enterKeyHint="search" autoComplete="off"
@@ -3656,7 +3921,7 @@ function ExplorarScreen(){
             <SectionTitle id="h-materias">{searching ? 'Resultados por matéria' : 'Matérias'}</SectionTitle>
             {contents.length > 0 && <button type="button" onClick={()=>openJornada()} className="sf-btn sf-btn-ghost h-11 px-3 -mr-3 text-[14px] font-semibold">Ver trilhas</button>}
           </div>
-          <ul className="list-none p-0 m-0 mt-1">
+          <ul className="sf-subj-grid list-none p-0 m-0 mt-1">
             {groups.map(g => (
               <SubjectDrawer key={g.id} sid={g.id} items={g.items} suggestions={g.suggestions} searching={searching}
                 onOpenContent={openDetalhe} onAdd={(sid)=>openCriarConteudo(sid)} onPreview={openPreviewItem}/>
@@ -3695,7 +3960,7 @@ function DetalheScreen({contentId}){
         {isDemoContent(c) && <DemoTag/>}
       </div>
       <SubTitle className="mt-4">{c.title}</SubTitle>
-      {isDemoContent(c) && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0">Trilha de exemplo do STUDY: textos, flashcards e avaliação escritos pela equipe. Seu progresso nela é real.</p>}
+      {isDemoContent(c) && <p className="text-[14px] leading-[20px] text-sf-muted mt-2 mb-0">Trilha de exemplo, escrita pela equipe do Study. O que você fizer aqui conta de verdade.</p>}
     </>
   );
 
@@ -3773,7 +4038,7 @@ function ModuleDrawer({c, topics, nextTopicIdx, doneCount, nextMeta, onOpen}){
   const [open, setOpen] = useDrawerState(`modulos:${c.id}`);
   const listId = `modulos-${c.id}`;
   const summary = nextTopicIdx >= 0
-    ? `${doneCount} de ${topics.length} concluídos · próximo: ${nextTopicIdx + 1}, ${nextMeta ? nextMeta.label.toLowerCase() : ''}`
+    ? `${doneCount} de ${topics.length} concluídos · a seguir: ${nextMeta ? nextMeta.label.toLowerCase() : `módulo ${nextTopicIdx + 1}`}`
     : `Todos os ${topics.length} módulos concluídos`;
   return (
     <section className="mt-6 rounded-2xl" style={{border:'1px solid var(--border)', background:'var(--bg-surface)'}}>
@@ -3791,7 +4056,7 @@ function ModuleDrawer({c, topics, nextTopicIdx, doneCount, nextMeta, onOpen}){
       <div className="sf-drawer" data-open={open ? 'true' : 'false'}>
         <div className="sf-drawer-inner">
           <div id={listId} hidden={!open} className="px-1 pb-2">
-            <p className="text-[14px] leading-[18px] text-sf-muted px-3 pb-1" style={{borderTop:'1px solid var(--border)', paddingTop:12}}>A ordem é uma sugestão: qualquer módulo pode ser aberto.</p>
+            <p className="text-[14px] leading-[18px] text-sf-muted px-3 pb-1" style={{borderTop:'1px solid var(--border)', paddingTop:12}}>Você pode abrir os módulos em qualquer ordem.</p>
             <ol className="list-none p-0 m-0">
               {topics.map((t,i)=>{
                 const isDone = !!t.done;
@@ -3845,7 +4110,7 @@ function PreSessaoScreen({contentId}){
     <div className="pt-12 px-5 pb-8 flex flex-col min-h-[calc(100dvh-var(--tabbar-h))]">
       <BackButton onClick={closeView}/>
       <SubTitle className="mt-4">Começar foco</SubTitle>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-1.5">O tempo só conta depois que você começar. Se o STUDY ficar em segundo plano, o foco pausa sozinho.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-1.5">O tempo só conta depois que você começar. Se o Study ficar em segundo plano, o foco pausa sozinho.</p>
 
       <div className="mt-5 flex items-center gap-3 pb-5" style={{borderBottom:'1px solid var(--border)'}}>
         <SubjectTile subjectId={c.subjectId}/>
@@ -4015,27 +4280,29 @@ function SessionNav({compact}){
   );
 }
 
-const STUDY_SYMBOL = (
-  <svg width="19" height="28" viewBox="0 0 58 88" fill="none" aria-hidden="true">
-    <path d="M28 41.5C32.45 41.5 36.8 42.82 40.5 45.29C44.2 47.76 47.08 51.28 48.79 55.39C50.49 59.5 50.94 64.03 50.07 68.39C49.2 72.75 47.06 76.76 43.91 79.91C40.76 83.06 36.75 85.2 32.39 86.07C28.03 86.94 23.5 86.49 19.39 84.79C15.28 83.08 11.76 80.2 9.29 76.5C6.82 72.8 5.5 68.45 5.5 64C5.5 60.41 8.41 57.5 12 57.5C15.59 57.5 18.5 60.41 18.5 64C18.5 65.88 19.06 67.72 20.1 69.28C21.14 70.84 22.63 72.06 24.36 72.78C26.1 73.5 28.01 73.68 29.85 73.32C31.7 72.95 33.39 72.05 34.72 70.72C36.05 69.39 36.95 67.7 37.32 65.85C37.68 64.01 37.5 62.1 36.78 60.36C36.06 58.63 34.84 57.14 33.28 56.1C31.72 55.06 29.88 54.5 28 54.5V41.5Z" fill="#60A5FA"/>
-    <path d="M22.55 2.06C27.71.97 33.08 1.45 37.97 3.44C42.86 5.42 47.04 8.82 49.99 13.19C52.93 17.57 54.5 22.73 54.5 28C54.5 31.59 51.59 34.5 48 34.5C44.41 34.5 41.5 31.59 41.5 28C41.5 25.31 40.7 22.68 39.2 20.45C37.7 18.22 35.57 16.49 33.08 15.48C30.59 14.47 27.85 14.23 25.22 14.78C22.59 15.33 20.19 16.66 18.31 18.58C16.44 20.51 15.19 22.96 14.71 25.6C14.24 28.25 14.56 30.97 15.65 33.43C16.73 35.89 18.52 37.97 20.8 39.41C23.07 40.84 25.72 41.56 28.41 41.48L28.8 54.48C23.52 54.64 18.32 53.22 13.86 50.4C9.4 47.59 5.88 43.5 3.75 38.68C1.62 33.85.99 28.5 1.92 23.3C2.85 18.11 5.31 13.31 8.99 9.53C12.66 5.74 17.38 3.14 22.55 2.06Z" fill="#2563EB"/>
-    <circle cx="48" cy="28" r="8" fill="#60A5FA"/>
-  </svg>
-);
-
 /* Navegação lateral (Figma: "Navegação lateral"): expandida a partir de 1280 px, compacta (trilho) entre 1024 e 1279. */
+/* No computador, Perfil sai da lista e vira o bloco de conta no rodapé da navegação (quem está usando + tipo de acesso). */
 function SideNav({compact}){
-  const {tab: rawTab, goTab, view} = useApp();
+  const {tab: rawTab, goTab, view, user} = useApp();
   const tab = activeTabFor(rawTab, view);
   return (
     <nav aria-label="Navegação principal" className="sf-sidenav" data-compact={compact ? 'true' : 'false'}>
-      <div className="sf-sidenav-brand">{compact ? STUDY_SYMBOL : <span>STUDY</span>}</div>
-      {TABS.map(({key,label,Icon})=>(
+      <button type="button" onClick={()=>goTab('home')} className="sf-sidenav-brand bg-transparent border-0 cursor-pointer" aria-label={`${BRAND_NAME}, ir para o Início`}>
+        {compact ? <BrandSymbol size={32}/> : <BrandLockup size={28}/>}
+      </button>
+      {TABS.filter(t => t.key !== 'perfil').map(({key,label,Icon})=>(
         <button key={key} type="button" onClick={()=>goTab(key)} aria-current={tab===key ? 'page' : undefined} className="sf-sidenav-item">
           <Icon size={20}/><span>{label}</span>
         </button>
       ))}
-      <SessionNav compact={compact}/>
+      <div className="sf-sidenav-foot">
+        <SessionNav compact={compact}/>
+        <button type="button" onClick={()=>goTab('perfil')} aria-current={tab==='perfil' ? 'page' : undefined} className="sf-sidenav-account"
+          aria-label={`Perfil: ${user.name}, ${user.kindLabel}`} title={compact ? `${user.name} · ${user.kindLabel}` : undefined}>
+          <ProfileAvatar user={user} size={32}/>
+          {!compact && <span className="min-w-0 flex flex-col"><span className="sf-acc-name">{user.name}</span><span className="sf-acc-kind">{user.kindLabel}</span></span>}
+        </button>
+      </div>
     </nav>
   );
 }
@@ -4225,7 +4492,7 @@ function StreakSection({streak, studyDates, liveSessions}){
           <ProgressBar value={(streak / next) * 100} height={4} color="var(--progress-fill)" label={`${streak} de ${next} dias`}/>
         </div>
       )}
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-3 mb-0">Conta um dia quando há pelo menos uma sessão de foco registrada.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-3 mb-0">Cada dia com pelo menos uma sessão de foco conta para a ofensiva.</p>
       <h3 className="text-[16px] leading-[22px] font-semibold text-sf-text mt-6 mb-0">Conquistas <span className="text-sf-muted font-normal tnum">{got} de {ach.length}</span></h3>
       <ul className="list-none p-0 m-0 mt-1">
         {ach.map(a=>(
@@ -4293,7 +4560,7 @@ function ProgressoScreen(){
         <span className="sf-ed-number text-sf-text">{fmtMin(stats.weekMin)}</span>
         <span className="text-[14px] text-sf-muted">de foco nesta semana</span>
       </p>
-      {example && <p className="mt-4 mb-0 inline-flex items-center gap-2"><DemoTag/><span className="text-[14px] leading-[20px] text-sf-muted">Assim aparece sua semana. Some na sua primeira sessão de foco.</span></p>}
+      {example && <p className="mt-4 mb-0 inline-flex items-center gap-2"><DemoTag/><span className="text-[14px] leading-[20px] text-sf-muted">Exemplo de como sua semana vai aparecer. Seus números entram depois da primeira sessão de foco.</span></p>}
       <div className="mt-6 flex items-end gap-2" style={{height: chartH, gap: desk ? 20 : 8, opacity: example ? .45 : 1}} role="img" aria-label={`Minutos de foco por dia nesta semana. ${chartSummary}`}>
         {stats.days.map((d, i) => { const m = example ? EXAMPLE_WEEK[i] : d.min, max = example ? exMax : stats.maxMin; return (
           <div key={d.ds} className="flex-1 h-full flex flex-col items-center justify-end gap-1" aria-hidden="true">
@@ -4305,7 +4572,7 @@ function ProgressoScreen(){
       <div className="flex mt-0 pt-2" style={{borderTop:'1px solid var(--border)', gap: desk ? 20 : 8}} aria-hidden="true">
         {stats.days.map(d => <span key={d.ds} className={`flex-1 text-center ${d.isToday ? 'text-[15px] font-semibold' : 'text-[13px] font-medium'}`} style={{color: d.isToday ? 'var(--text-primary)' : 'var(--text-secondary)'}}>{d.label}</span>)}
       </div>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Mesmos dias da semana do Plano. Hoje é {WEEK_LONG[stats.todayIdx]}.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Hoje é {WEEK_LONG[stats.todayIdx]}.</p>
       {stats.sessionsCount > 0 && <p className="text-[14px] leading-[20px] text-sf-muted mt-1 tnum">No total: {fmtMin(stats.totalMin)} em {stats.sessionsCount} {plural(stats.sessionsCount, 'sessão', 'sessões')}.</p>}
     </section>
   );
@@ -4317,7 +4584,7 @@ function ProgressoScreen(){
       {history.length === 0 ? (
         <div className="mt-3 rounded-xl p-5" style={{border:'1px dashed var(--border)'}}>
           <p className="text-[17px] leading-[22px] font-semibold text-sf-text m-0">Ainda não há semanas anteriores.</p>
-          <p className="text-[14px] leading-[18px] text-sf-muted mt-1.5 mb-0">Quando esta semana terminar, ela aparece aqui com os minutos de foco registrados em cada dia. Só entram sessões que aconteceram de verdade.</p>
+          <p className="text-[14px] leading-[18px] text-sf-muted mt-1.5 mb-0">Quando a semana terminar, ela aparece aqui com seus minutos de foco de cada dia.</p>
         </div>
       ) : (
         <ul className="list-none p-0 m-0 mt-2">
@@ -4763,7 +5030,7 @@ function PlanoScreen(){
       <h2 className="sf-ed-title text-sf-text mt-6">{longDay(sel)}</h2>
       <div className="mt-2">
         {dayItems.length === 0
-          ? <p className="text-[14px] leading-[20px] text-sf-muted py-2">{sel === today ? 'Nada no Plano para hoje.' : 'Nada no Plano para este dia.'}</p>
+          ? <p className="text-[14px] leading-[20px] text-sf-muted py-2">{sel === today ? 'Nada planejado para hoje.' : 'Nada planejado para este dia.'}</p>
           : dayItems.map(it => <PlanItemRow key={it.id} it={it} {...rowProps(it)}/>)}
       </div>
       {weekItems.length > 0 && (
@@ -4896,7 +5163,7 @@ function PlannerScreen({initialDate}){
       <div className="flex items-start justify-between mt-1">
         <div>
           <SubTitle>Mês do Plano</SubTitle>
-          <p className="text-[14px] text-sf-muted mt-1">Planeje o dia, execute e conclua.</p>
+          <p className="text-[14px] text-sf-muted mt-1">Anote o que precisa fazer e marque quando terminar.</p>
         </div>
         {sel!==today && (
           <button type="button" onClick={()=>selectDay(today)}
@@ -5013,7 +5280,7 @@ function PlannerScreen({initialDate}){
 }
 
 /* Editar/Nova matéria (Figma: "Personalizar matéria"). Folha no celular, diálogo central a partir de 600 px.
-   Ícone é o padrão; emoji é opcional e vem do teclado do sistema (o STUDY não mantém biblioteca de emojis). */
+   Ícone é o padrão; emoji é opcional e vem do teclado do sistema (o Study não mantém biblioteca de emojis). */
 function SubjectSheetForm({sheet}){
   const {closeSubjectSheet, saveSubject, subjectsStore} = useApp();
   const band = useBand();
@@ -5070,7 +5337,7 @@ function SubjectSheetForm({sheet}){
       <input id="subject-name" ref={nameRef} value={builtin ? subjName(editingId) : name} onChange={e=>setName(e.target.value)} readOnly={builtin} maxLength={40}
         placeholder="Ex.: Biologia" className={INPUT_CLS} style={{color: builtin ? 'var(--text-secondary)' : 'var(--text-primary)'}}
         aria-invalid={showErr && !builtin && !name.trim() ? 'true' : undefined} aria-describedby={builtin ? 'subject-name-hint' : ((showErr && !name.trim()) || dupId ? 'subject-name-err' : undefined)}/>
-      {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">O nome das matérias padrão não muda; a identificação e a cor, sim.</p>}
+      {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">Nas matérias que já vêm no Study, dá para trocar o ícone e a cor, mas não o nome.</p>}
       {showErr && !builtin && !name.trim() && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Dê um nome para a matéria.</p>}
       {dupId && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Já existe a matéria {subjName(dupId)}. Use outro nome ou escolha a matéria existente.</p>}
 
@@ -5180,7 +5447,7 @@ function JornadaScreen({contentId}){
     return (
       <div className="pt-16 px-5 pb-8">
         <BackButton onClick={closeView}/>
-        <h1 className="text-[22px] font-bold text-sf-text mt-1">Jornada de Aprendizado</h1>
+        <h1 className="text-[22px] font-bold text-sf-text mt-1">Suas trilhas</h1>
         <div className="mt-6">
           <EmptyState Icon={IconRocket} title="Você ainda não começou nenhuma matéria.">
             <button type="button" onClick={()=>goTab('estudar')}
@@ -5203,7 +5470,7 @@ function JornadaScreen({contentId}){
     <div className="pt-16 px-5 pb-8">
       <BackButton onClick={()=>openDetalhe(c.id)} label="Voltar ao conteúdo"/>
       <div className="mt-1"><SubjectTag subjectId={c.subjectId}/></div>
-      <h1 className="text-[22px] font-bold text-sf-text mt-2">Jornada de Aprendizado</h1>
+      <h1 className="text-[22px] font-bold text-sf-text mt-2">Suas trilhas</h1>
       <p className="text-[12px] text-sf-muted mt-1">{c.title} · siga as etapas para dominar este conteúdo</p>
 
       {total === 0 ? (
@@ -5283,15 +5550,18 @@ function JornadaScreen({contentId}){
   );
 }
 
-function ProfileAvatar({user}){
+function ProfileAvatar({user, size=48}){
   const [broken, setBroken] = useState(false);
+  const box = {width:size, height:size};
   if(user.picture && !broken){
-    return <img src={user.picture} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" onError={()=>setBroken(true)}/>;
+    return <img src={user.picture} alt="" className="rounded-full object-cover shrink-0" style={box} referrerPolicy="no-referrer" onError={()=>setBroken(true)}/>;
   }
   return (
-    <div aria-hidden="true" className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-semibold shrink-0" style={{background:'var(--bg-elevated)', color: user.visitor ? 'var(--text-secondary)' : 'var(--text-primary)'}}>
-      {user.visitor ? <IconProfile size={22}/> : user.initials}
-    </div>
+    <span aria-hidden="true" className="rounded-full flex items-center justify-center font-semibold shrink-0"
+      style={{...box, fontSize: Math.round(size * .34), background: user.kind === 'local' ? 'var(--brand-tint-2)' : 'var(--bg-elevated)',
+        color: user.visitor ? 'var(--text-secondary)' : (user.kind === 'local' ? 'var(--blue-300)' : 'var(--text-primary)')}}>
+      {user.visitor ? <IconProfile size={Math.round(size * .46)}/> : user.initials}
+    </span>
   );
 }
 
@@ -5300,9 +5570,11 @@ function AjudaScreen(){
   const {closeView} = useApp();
   const qa = [
     ['Como funciona a trilha?', 'Cada conteúdo tem módulos de videoaula, leitura, flashcards e uma avaliação no fim. A ordem é uma sugestão: você pode abrir qualquer módulo.'],
-    ['Quando o tempo de foco conta?', 'Só depois que você toca em Começar foco. Abrir um módulo não conta tempo. Se o STUDY ficar em segundo plano, o foco pausa.'],
+    ['Quando o tempo de foco conta?', 'Só depois que você toca em Começar foco. Abrir um módulo não conta tempo. Se o Study ficar em segundo plano, o foco pausa.'],
     ['Como funciona a nota?', 'A avaliação vale de 0 a 10. Com 7,0 ou mais, o conteúdo fica concluído.'],
-    ['Onde ficam meus dados?', 'Neste aparelho, no navegador. Entrar com o Google não sincroniza entre aparelhos.'],
+    ['Onde ficam meus dados?', 'Neste navegador, seja como visitante, com perfil ou com o Google. O Study não sincroniza entre aparelhos.'],
+    ['Qual a diferença entre perfil e visitante?', 'O perfil guarda tudo sem prazo e libera os recursos com IA, como criar seus próprios conteúdos. Como visitante, você usa as trilhas de exemplo e o progresso some após 30 dias sem uso.'],
+    ['Como volto para o meu perfil?', 'Na tela de entrada, toque em “Continuar como” com o seu nome ou em “Entrar com outro perfil”.'],
   ];
   return (
     <div className="pt-12 px-5 pb-8">
@@ -5338,9 +5610,13 @@ function MenuGroup({items}){
 
 function PerfilScreen(){
   const {user, liveSessions, openJornada, openConfiguracoes, openMaterias, contents, signOut, goToView, isVisitor, askAccount} = useApp();
-  const {clearVisitorData} = useIdentity();
+  const {clearVisitorData, deleteLocalProfile, renameLocalProfile} = useIdentity();
   const [confirmOut, setConfirmOut] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
+  const isLocal = user.kind === 'local';
   const recent = liveSessions.slice(-4).reverse().map(s=>{
     const c = contents.find(x=>x.id===s.contentId);
     return { id: s.id, title: c ? c.title : (s.title || 'Sessão de foco'), min: s.durationMin, when: sessionWhen(s), subjectId: (c && c.subjectId) || s.subjectId };
@@ -5358,15 +5634,16 @@ function PerfilScreen(){
         <ProfileAvatar user={user}/>
         <div className="min-w-0">
           <p className="text-[18px] leading-[24px] font-bold text-sf-text break-words">{user.name}</p>
-          {user.email && <p className="text-[14px] leading-[20px] text-sf-muted break-all">{user.email}</p>}
-          {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted m-0">Modo visitante</p>}
+          {user.email && <p className="text-[14px] leading-[20px] text-sf-muted break-all m-0">{user.email}</p>}
+          {isLocal && <p className="text-[14px] leading-[20px] text-sf-muted m-0">@{user.username} · perfil neste aparelho</p>}
+          {isVisitor && <p className="text-[14px] leading-[20px] text-sf-muted m-0">Sem perfil · progresso só neste navegador</p>}
         </div>
       </div>
       {isVisitor && (
         <section className="mt-5 rounded-2xl p-4" style={{background:'var(--bg-surface)'}} aria-labelledby="vis-h">
           <h2 id="vis-h" className="text-[16px] leading-[22px] font-semibold text-sf-text m-0">Guarde o que você estudou</h2>
-          <p className="text-[14px] leading-[20px] text-sf-muted mt-1 mb-0">Como visitante, seu progresso fica só neste navegador. Entrando com o Google, ele vai junto para a sua conta e você pode criar seus próprios conteúdos.</p>
-          <button type="button" onClick={()=>askAccount('entrar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]">Entrar com Google</button>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-1 mb-0">Hoje seu progresso fica só neste navegador e some após 30 dias sem uso. Crie um perfil ou entre com o Google para guardar tudo e criar seus próprios conteúdos.</p>
+          <button type="button" onClick={()=>askAccount('entrar')} className="sf-btn sf-btn-primary w-full mt-4 h-12 text-[15px]">Guardar meu progresso</button>
         </section>
       )}
 
@@ -5396,11 +5673,42 @@ function PerfilScreen(){
           ]}/></div>
           <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Sair do modo visitante mantém seu progresso neste navegador por 30 dias. Apagar remove tudo agora.</p>
         </>
+      ) : isLocal ? (
+        <>
+          <div className="mt-3"><MenuGroup items={[
+            {Icon:IconProfile, label:'Alterar nome de exibição', action:()=>{ setNewName(user.name); setRenaming(true); }, noChevron:true},
+            {Icon:IconLogout, label:'Sair do perfil', action:signOut, noChevron:true},
+            {Icon:IconTrash, label:'Apagar este perfil', action:()=>setConfirmDelete(true), noChevron:true},
+          ]}/></div>
+          <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Seu perfil e o que você estudou ficam salvos neste navegador. Sair não apaga nada; para voltar, escolha o perfil na tela de entrada.</p>
+        </>
       ) : (
         <>
           <div className="mt-3"><MenuGroup items={[{Icon:IconLogout, label:'Sair da conta', action:()=>setConfirmOut(true), noChevron:true}]}/></div>
           <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Seus dados ficam salvos neste aparelho, separados por conta. Sair não apaga o que você estudou aqui.</p>
         </>
+      )}
+
+      {confirmDelete && (
+        <ModalShell variant="center" onClose={()=>setConfirmDelete(false)} labelledBy="del-title">
+          <p id="del-title" className="text-[18px] leading-[24px] font-bold text-sf-text text-center">Apagar o perfil @{user.username}?</p>
+          <p className="text-[14px] leading-[20px] text-sf-muted text-center mt-2">Conteúdos, módulos concluídos, sessões de foco, Plano, anotações e preferências deste perfil serão apagados deste navegador. Não dá para desfazer.</p>
+          <button type="button" onClick={deleteLocalProfile} className="sf-btn sf-btn-danger w-full mt-5 h-12 text-[14px]">Apagar perfil</button>
+          <button type="button" onClick={()=>setConfirmDelete(false)} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Cancelar</button>
+        </ModalShell>
+      )}
+
+      {renaming && (
+        <ModalShell variant="center" onClose={()=>setRenaming(false)} labelledBy="ren-title">
+          <form onSubmit={(e)=>{ e.preventDefault(); renameLocalProfile(newName); setRenaming(false); }}>
+            <p id="ren-title" className="text-[18px] leading-[24px] font-bold text-sf-text text-center">Nome de exibição</p>
+            <input aria-labelledby="ren-title" value={newName} onChange={e=>setNewName(e.target.value)} maxLength={40} autoFocus
+              className="sf-fieldbox w-full h-12 rounded-xl px-3.5 mt-4 text-[16px] text-sf-text outline-none" style={{fontFamily:'inherit'}}/>
+            <p className="text-[13px] leading-[18px] text-sf-muted mt-2 mb-0">O nome de usuário @{user.username} não muda.</p>
+            <button type="submit" className="sf-btn sf-btn-primary w-full mt-5 h-12 text-[14px]">Salvar</button>
+            <button type="button" onClick={()=>setRenaming(false)} className="sf-btn sf-btn-ghost w-full mt-2 h-11 text-[14px] font-semibold">Cancelar</button>
+          </form>
+        </ModalShell>
       )}
 
       {confirmClear && (
@@ -5447,11 +5755,11 @@ function ConfiguracoesScreen(){
           <button type="button" className="sf-roundbtn" aria-label="Aumentar a meta em 5 minutos" onClick={()=>setFocusMin(settings.focusMin + 5)} disabled={settings.focusMin >= 120}><IconPlus size={18}/></button>
         </div>
       </SettingsGroup>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Meta sugerida ao começar um foco. Dá para mudar antes de começar. Vai de 5 a 120 min.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">É o tempo que aparece quando você começa um foco. Dá para mudar antes de começar, de 5 a 120 min.</p>
 
       <SettingsLabel>Aparência</SettingsLabel>
       <SettingsGroup><div className="py-3"><ThemeSegmented/></div></SettingsGroup>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Sistema acompanha o tema do aparelho.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Em Sistema, o Study segue o tema claro ou escuro do aparelho.</p>
 
       <SettingsLabel>Geral</SettingsLabel>
       <SettingsGroup>
@@ -5466,8 +5774,8 @@ function ConfiguracoesScreen(){
       </SettingsGroup>
 
       <SettingsLabel>Em breve</SettingsLabel>
-      <p className="text-[14px] leading-[20px] text-sf-muted">Pausas do Pomodoro, sons de início e fim, lembrete diário e notificações ainda não estão disponíveis.</p>
-      <p className="text-center text-[14px] text-sf-muted mt-8">STUDY v1.0.0</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted">Pausas do Pomodoro, sons de início e fim, lembrete diário e notificações.</p>
+      <p className="text-center text-[14px] text-sf-muted mt-8">Study v1.0.0</p>
     </div>
   );
 }
@@ -5531,7 +5839,7 @@ function TarefasScreen(){
   return (
     <div className="pt-16 px-5 pb-8 relative">
       <BackButton onClick={closeView}/>
-      <h1 className="text-[24px] font-bold text-sf-text mt-1">Lista de Tarefas</h1>
+      <h1 className="text-[24px] font-bold text-sf-text mt-1">Tarefas</h1>
       <p className="text-[12px] text-sf-muted mt-1 tnum">{pending.length} {pending.length===1 ? 'pendente' : 'pendentes'} · {done.length} {done.length===1 ? 'concluída' : 'concluídas'}</p>
 
       {adding && (
@@ -5620,7 +5928,7 @@ function CriarConteudoScreen({initialSubjectId}){
     <form className="pt-12 px-5 pb-8" onSubmit={(e)=>{ e.preventDefault(); handleSave(); }} noValidate>
       <BackButton onClick={closeView}/>
       <SubTitle className="mt-4">Criar conteúdo</SubTitle>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Escolha a matéria e diga o que você quer aprender. O STUDY monta a trilha a partir disso.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-1">Escolha a matéria e diga o que você quer aprender. O Study monta a trilha a partir disso.</p>
 
       <div role="group" aria-labelledby="cc-subject-label" ref={subjRef}>
         <p id="cc-subject-label" className="text-[14px] leading-[20px] font-semibold text-sf-text mt-5 mb-2">1. Matéria</p>
@@ -5713,7 +6021,7 @@ function YouTubeVideoScreen({video, context}){
       <div className="mt-3 rounded-2xl p-4" style={{background:'var(--card-bg)'}}>
         <h2 className="text-[13px] font-bold text-sf-text">Sobre este vídeo</h2>
         <p className="text-[12px] text-sf-muted mt-2 leading-relaxed break-words">
-          {video.description || 'Conteúdo encontrado pelo STUDY no YouTube.'}
+          {video.description || 'Vídeo encontrado no YouTube.'}
         </p>
       </div>
 
@@ -5723,7 +6031,7 @@ function YouTubeVideoScreen({video, context}){
           {relState === 'loading' && <p role="status" className="text-[12px] text-sf-muted">Carregando vídeos relacionados...</p>}
           {relState === 'error' && (
             <InlineError title="Não foi possível carregar os vídeos relacionados."
-              hint="Confira sua conexão e se o servidor do STUDY está em execução." onRetry={()=>setRelKey(k=>k+1)}/>
+              hint="Confira sua conexão. Se ela estiver boa, o Study pode estar fora do ar: tente de novo em alguns minutos." onRetry={()=>setRelKey(k=>k+1)}/>
           )}
           {relState === 'ok' && related.map(v=>(
             <button type="button" key={v.id} onClick={()=>openYouTubeVideo(v, null, context)}
@@ -5861,7 +6169,7 @@ function ModuleNotes({contentId, topicIndex}){
         maxLength={5000} placeholder="Escreva o que quiser lembrar deste módulo." aria-describedby={`${id}-hint`}
         className="sf-input w-full p-3 text-[16px] leading-[24px] resize-y" style={{minHeight:140}}/>
       <p id={`${id}-hint`} className="text-[13px] leading-[16px] font-medium text-sf-muted mt-2" aria-live="polite">
-        {status === 'saved' ? 'Salvo neste aparelho.' : 'Ficam neste módulo e salvam sozinhas, só neste aparelho.'}
+        {status === 'saved' ? 'Salvo neste aparelho.' : 'Salvas automaticamente neste aparelho.'}
       </p>
     </section>
   );
@@ -5985,7 +6293,7 @@ function WatchRuleNote({ratio, done, unknownDuration}){
     <div className="mt-3 rounded-xl px-3 py-2.5 flex items-start gap-2.5" style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
       <span className="text-sf-muted inline-flex mt-0.5 shrink-0" aria-hidden="true"><IconInfo size={16}/></span>
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] leading-[20px] text-sf-muted">O Study marcará este módulo como concluído quando você assistir a pelo menos 75% do vídeo.</p>
+        <p className="text-[14px] leading-[20px] text-sf-muted">O módulo fica concluído quando você assiste a pelo menos 75% do vídeo.</p>
         {!done && (
           <div className="mt-2">
             <div className="flex items-center justify-between gap-2">
@@ -6080,7 +6388,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const relatedEl = (title)=> recommended.length > 0 && (
     <section aria-labelledby={`rel-${topicIndex}`}>
       <PanelHead id={`rel-${topicIndex}`}>{title}</PanelHead>
-      <p className="text-[13px] leading-[18px] text-sf-muted -mt-1 mb-1">Trocar de aula muda o vídeo deste módulo. O tempo assistido é contado por vídeo.</p>
+      <p className="text-[13px] leading-[18px] text-sf-muted -mt-1 mb-1">Se você trocar de aula, o vídeo deste módulo muda. O tempo assistido conta separado para cada vídeo.</p>
       <div>
         {recommended.map(v=>(
           <button type="button" key={v.id} onClick={()=>chooseVideo(v)} aria-label={`Assistir neste módulo: ${v.title}`}
@@ -6186,19 +6494,19 @@ function ReadingSources({sources, ordinal={}}){
             {!has && (
               <p className="text-[14px] leading-[20px] text-sf-muted mt-3">
                 {sources.status === 'unavailable'
-                  ? 'Este texto foi gerado sem pesquisa na web, então não há fontes para mostrar. Confira datas, números e nomes em um material de referência.'
-                  : 'O Gemini não usou páginas da web para este texto, então não há fontes verificáveis. Confira datas, números e nomes em um material de referência.'}
+                  ? 'Este texto foi escrito sem pesquisa na web, então não há fontes para mostrar. Vale conferir datas, números e nomes em outro material.'
+                  : 'Este texto não usou páginas da web, então não há fontes para conferir. Vale checar datas, números e nomes em outro material.'}
               </p>
             )}
             {cited.length > 0 && (<>
-              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Sustentam o texto</h3>
+              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Usadas no texto</h3>
               <ul className="list-none p-0 m-0">{cited.map(row)}</ul>
             </>)}
             {other.length > 0 && (<>
               <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-4 mb-0">Também consultadas na pesquisa</h3>
               <ul className="list-none p-0 m-0">{other.map(row)}</ul>
             </>)}
-            {has && <p className="text-[13px] leading-[16px] font-medium text-sf-faint mt-3">Links encontrados pela Pesquisa Google durante a geração do texto. O STUDY não sugere leituras extras para não indicar páginas que não foram consultadas.</p>}
+            {has && <p className="text-[13px] leading-[16px] font-medium text-sf-faint mt-3">Links encontrados pela Pesquisa Google durante a geração do texto. O Study não sugere leituras extras para não indicar páginas que não foram consultadas.</p>}
             {sources.searchEntryPoint && <SearchSuggestions html={sources.searchEntryPoint}/>}
           </div>
         </div>
@@ -6819,7 +7127,15 @@ function IdentityGate(){
   if(!space) return <LoginScreen/>;
   return <AppProvider key={space}><AppShell/></AppProvider>;
 }
-function App(){ return <ThemeProvider><IdentityProvider><IdentityGate/></IdentityProvider></ThemeProvider>; }
+function App(){
+  const [intro, setIntro] = useState(()=>{ const p = shouldPlayIntro(); window.__sfIntroActive = p; return p; });
+  return (
+    <ThemeProvider>
+      <IdentityProvider><IdentityGate/></IdentityProvider>
+      {intro && <BrandIntro onDone={()=> setIntro(false)}/>}
+    </ThemeProvider>
+  );
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
