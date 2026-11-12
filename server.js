@@ -1093,7 +1093,7 @@ function debugGuard(req, res, next) {
    ============================================================ */
 app.get("/", (req, res) => {
   res.json({
-    app: "STUDY API",
+    app: "Study API",
     status: "online",
     gemini: !!genAI,
     modelsByEndpoint: MODELS_BY_ENDPOINT,
@@ -1470,7 +1470,7 @@ if (require.main === module) {
     console.error("[unhandledRejection]", reason && reason.message ? reason.message : reason);
   });
   const server = app.listen(PORT, () => {
-    console.log(`🚀 STUDY API rodando em http://localhost:${PORT}`);
+    console.log(`🚀 Study API rodando em http://localhost:${PORT}`);
     if (genAI && envBool("GEMINI_WARMUP", true)) {
       setTimeout(async () => {
         try {

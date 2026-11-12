@@ -2768,7 +2768,7 @@ function ModalShell({onClose, labelledBy, variant='sheet', z=50, children}){
 class ErrorBoundary extends React.Component{
   constructor(props){ super(props); this.state = {error: null}; }
   static getDerivedStateFromError(error){ return {error}; }
-  componentDidCatch(error, info){ console.error('[STUDY] Erro de renderização:', error, info && info.componentStack); }
+  componentDidCatch(error, info){ console.error('[Study] Erro de renderização:', error, info && info.componentStack); }
   render(){
     if(this.state.error){
       return (

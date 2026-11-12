@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sobe o servidor do STUDY e o túnel do ngrok (Caminho A, uso pessoal).
+# Sobe o servidor do Study e o túnel do ngrok (Caminho A, uso pessoal).
 # Uso: ./scripts/celular.sh [seu-dominio.ngrok-free.app] [porta]
 # O domínio também pode vir de NGROK_DOMAIN (variável de ambiente ou .env).
 set -euo pipefail
@@ -31,5 +31,5 @@ SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT INT TERM
 sleep 2
 kill -0 "$SERVER_PID" 2>/dev/null || { echo "O servidor não subiu (veja as mensagens acima)." >&2; exit 1; }
-echo "STUDY no celular: https://$DOMAIN/"
+echo "Study no celular: https://$DOMAIN/"
 ngrok http --url="$DOMAIN" "$PORT"

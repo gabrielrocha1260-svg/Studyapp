@@ -1,4 +1,4 @@
-# Caminho B: STUDY sempre disponível no Render (Web Service Node).
+# Caminho B: Study sempre disponível no Render (Web Service Node).
 # As chaves são pedidas no painel na criação do Blueprint (sync: false) e nunca ficam no git.
 services:
   - type: web

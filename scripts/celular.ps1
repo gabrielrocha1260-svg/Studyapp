@@ -1,4 +1,4 @@
-﻿# Sobe o servidor do STUDY e o túnel do ngrok (Caminho A, uso pessoal).
+﻿# Sobe o servidor do Study e o túnel do ngrok (Caminho A, uso pessoal).
 # Uso: .\scripts\celular.ps1 [-Domain seu-dominio.ngrok-free.app] [-Port 3000]
 # O domínio também pode vir de NGROK_DOMAIN (variável de ambiente ou .env).
 param(
@@ -32,7 +32,7 @@ $server = Start-Process -FilePath "node" -ArgumentList "server.js" -NoNewWindow 
 try {
   Start-Sleep -Seconds 2
   if ($server.HasExited) { throw "O servidor não subiu (veja as mensagens acima)." }
-  Write-Host "STUDY no celular: https://$Domain/" -ForegroundColor Green
+  Write-Host "Study no celular: https://$Domain/" -ForegroundColor Green
   ngrok http --url="$Domain" $Port
 } finally {
   if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
