@@ -980,47 +980,47 @@ function subjName(id){ const n = SUBJECTS[id] && SUBJECTS[id].name; return n ? n
 
 const SEED_CONTENTS = [
   {id:'calc-limites', title:'Cálculo — Limites', subjectId:'matematica', unitLabel:'32 flashcards', estMinutes:15, progressPct:62,
-    desc:"Este módulo aborda limites em Cálculo Diferencial. Você aprenderá a calcular limites de funções, entender continuidade e trabalhar com casos como limites laterais e no infinito.",
-    topics:[{t:'Introdução aos Limites',done:true},{t:'Limites Laterais',done:true},{t:'Limites no Infinito',done:false},{t:'Indeterminações',done:false},{t:"Regra de L'Hôpital",done:false}]},
-  {id:'cinematica', title:'Cinemática Escalar', subjectId:'fisica', unitLabel:'24 cards', estMinutes:12, progressPct:20,
-    desc:"Conceitos fundamentais do movimento: posição, velocidade e aceleração ao longo do tempo, com gráficos e exercícios de fixação.",
-    topics:[{t:'Conceitos de Velocidade e Aceleração',done:true},{t:'Movimento Retilíneo Uniforme',done:false},{t:'Movimento Uniformemente Variado',done:false},{t:'Gráficos de Posição e Velocidade',done:false}]},
+    desc:"Limites em cálculo diferencial: como calcular limites de funções, entender continuidade e resolver limites laterais e no infinito.",
+    topics:[{t:'Introdução aos limites',done:true},{t:'Limites laterais',done:true},{t:'Limites no infinito',done:false},{t:'Indeterminações',done:false},{t:"Regra de L'Hôpital",done:false}]},
+  {id:'cinematica', title:'Cinemática escalar', subjectId:'fisica', unitLabel:'24 cards', estMinutes:12, progressPct:20,
+    desc:"Posição, velocidade e aceleração ao longo do tempo, com gráficos e exercícios.",
+    topics:[{t:'Velocidade e aceleração',done:true},{t:'Movimento retilíneo uniforme',done:false},{t:'Movimento uniformemente variado',done:false},{t:'Gráficos de posição e velocidade',done:false}]},
   {id:'segunda-guerra', title:'Segunda Guerra Mundial', subjectId:'historia', unitLabel:'40 cards', estMinutes:20, progressPct:0,
-    desc:"Panorama do maior conflito do século XX: causas, principais frentes de batalha e consequências para o mundo pós-guerra.",
-    topics:[{t:'Causas do Conflito',done:false},{t:'Principais Frentes de Batalha',done:false},{t:'O Holocausto',done:false},{t:'Fim da Guerra e Consequências',done:false}]},
-  {id:'present-perfect', title:'Present Perfect Tense', subjectId:'ingles', unitLabel:'18 cards', estMinutes:8, progressPct:80,
-    desc:"Estrutura, usos e contextos do Present Perfect em inglês, com foco nos erros mais comuns de estudantes brasileiros.",
-    topics:[{t:'Estrutura do Present Perfect',done:true},{t:'Have vs Has',done:true},{t:'Usos e Contextos',done:true},{t:'Erros Comuns',done:false}]},
+    desc:"As causas, as principais frentes de batalha e o que mudou no mundo depois da guerra.",
+    topics:[{t:'Causas da guerra',done:false},{t:'Principais frentes de batalha',done:false},{t:'O Holocausto',done:false},{t:'Fim da guerra e consequências',done:false}]},
+  {id:'present-perfect', title:'Present Perfect', subjectId:'ingles', unitLabel:'18 cards', estMinutes:8, progressPct:80,
+    desc:"Como montar e quando usar o Present Perfect, com os erros que brasileiros mais cometem.",
+    topics:[{t:'Como se forma o Present Perfect',done:true},{t:'Have ou has',done:true},{t:'Quando usar',done:true},{t:'Erros comuns',done:false}]},
 ];
 
 const DISCOVERABLE_SUBJECTS = [
   {id:'derivadas', title:'Derivadas', subjectId:'matematica', unitLabel:'28 flashcards', estMinutes:15,
     desc:'Regras de derivação, taxa de variação e aplicações.',
-    topics:[{t:'Definição de Derivada',done:false},{t:'Regras Básicas',done:false},{t:'Regra da Cadeia',done:false},{t:'Aplicações',done:false}]},
+    topics:[{t:'O que é derivada',done:false},{t:'Regras básicas',done:false},{t:'Regra da cadeia',done:false},{t:'Aplicações',done:false}]},
   {id:'integrais', title:'Integrais', subjectId:'matematica', unitLabel:'30 flashcards', estMinutes:20,
     desc:'Integrais indefinidas, definidas e técnicas de integração.',
-    topics:[{t:'Integrais Indefinidas',done:false},{t:'Técnicas de Integração',done:false},{t:'Integrais Definidas',done:false},{t:'Aplicações',done:false}]},
-  {id:'algebra-linear', title:'Álgebra Linear', subjectId:'matematica', unitLabel:'24 flashcards', estMinutes:18,
+    topics:[{t:'Integrais indefinidas',done:false},{t:'Técnicas de integração',done:false},{t:'Integrais definidas',done:false},{t:'Aplicações',done:false}]},
+  {id:'algebra-linear', title:'Álgebra linear', subjectId:'matematica', unitLabel:'24 flashcards', estMinutes:18,
     desc:'Matrizes, vetores, sistemas lineares e transformações.',
-    topics:[{t:'Matrizes',done:false},{t:'Determinantes',done:false},{t:'Sistemas Lineares',done:false},{t:'Transformações',done:false}]},
-  {id:'geometria-analitica', title:'Geometria Analítica', subjectId:'matematica', unitLabel:'22 flashcards', estMinutes:16,
+    topics:[{t:'Matrizes',done:false},{t:'Determinantes',done:false},{t:'Sistemas lineares',done:false},{t:'Transformações',done:false}]},
+  {id:'geometria-analitica', title:'Geometria analítica', subjectId:'matematica', unitLabel:'22 flashcards', estMinutes:16,
     desc:'Pontos, retas, circunferências e cônicas no plano cartesiano.',
-    topics:[{t:'Pontos e Retas',done:false},{t:'Circunferências',done:false},{t:'Cônicas',done:false}]},
+    topics:[{t:'Pontos e retas',done:false},{t:'Circunferências',done:false},{t:'Cônicas',done:false}]},
   {id:'leis-newton', title:'Leis de Newton', subjectId:'fisica', unitLabel:'26 flashcards', estMinutes:14,
-    desc:'As três leis fundamentais da dinâmica e suas aplicações.',
-    topics:[{t:'Primeira Lei',done:false},{t:'Segunda Lei',done:false},{t:'Terceira Lei',done:false}]},
+    desc:'As três leis de Newton e onde elas aparecem no dia a dia.',
+    topics:[{t:'Primeira lei',done:false},{t:'Segunda lei',done:false},{t:'Terceira lei',done:false}]},
   {id:'termologia', title:'Termologia', subjectId:'fisica', unitLabel:'24 flashcards', estMinutes:16,
     desc:'Temperatura, calor, dilatação e gases ideais.',
-    topics:[{t:'Temperatura e Calor',done:false},{t:'Dilatação Térmica',done:false},{t:'Gases Ideais',done:false}]},
+    topics:[{t:'Temperatura e calor',done:false},{t:'Dilatação térmica',done:false},{t:'Gases ideais',done:false}]},
   {id:'ditadura-militar', title:'Ditadura Militar', subjectId:'historia', unitLabel:'34 flashcards', estMinutes:18,
-    desc:'O período da Ditadura Militar no Brasil (1964–1985): contexto, governos e consequências.',
-    topics:[{t:'Contexto e Golpe de 1964',done:false},{t:'AI-5 e Repressão',done:false},{t:'Milagre Econômico',done:false},{t:'Abertura e Redemocratização',done:false}]},
+    desc:'O Brasil de 1964 a 1985: como o golpe aconteceu, os governos militares e o que ficou depois.',
+    topics:[{t:'O golpe de 1964',done:false},{t:'AI-5 e repressão',done:false},{t:'Milagre econômico',done:false},{t:'Abertura e redemocratização',done:false}]},
   {id:'revolucao-francesa', title:'Revolução Francesa', subjectId:'historia', unitLabel:'30 flashcards', estMinutes:16,
     desc:'Causas, fases e desdobramentos da Revolução Francesa.',
-    topics:[{t:'Antigo Regime',done:false},{t:'Queda da Bastilha',done:false},{t:'Fase do Terror',done:false},{t:'Era Napoleônica',done:false}]},
+    topics:[{t:'Antigo Regime',done:false},{t:'Queda da Bastilha',done:false},{t:'O Terror',done:false},{t:'Era napoleônica',done:false}]},
   {id:'phrasal-verbs', title:'Phrasal Verbs', subjectId:'ingles', unitLabel:'26 flashcards', estMinutes:12,
-    desc:'Os phrasal verbs mais comuns do inglês e seus contextos de uso.',
-    topics:[{t:'Phrasal Verbs Básicos',done:false},{t:'Separáveis e Inseparáveis',done:false},{t:'Contextos de Uso',done:false}]},
+    desc:'Os phrasal verbs mais usados em inglês e quando usar cada um.',
+    topics:[{t:'Phrasal verbs básicos',done:false},{t:'Separáveis e inseparáveis',done:false},{t:'Quando usar cada um',done:false}]},
 ];
 
 const CATALOG = [...SEED_CONTENTS, ...DISCOVERABLE_SUBJECTS].map(item => ({
@@ -1403,7 +1403,7 @@ async function apiRequest(url, { method='GET', params, body, timeoutMs=API_TIMEO
     catch(e){ throw new ApiError(timedOut ? 'timeout' : 'network', timedOut ? 'Tempo esgotado' : 'Sem conexão com o servidor'); }
     if(!res.ok) throw new ApiError('http', `HTTP ${res.status}`);
     try{ return await res.json(); }
-    catch(e){ throw new ApiError(timedOut ? 'timeout' : 'parse', 'Resposta inválida do servidor'); }
+    catch(e){ throw new ApiError(timedOut ? 'timeout' : 'parse', 'O servidor respondeu de um jeito inesperado.'); }
   } finally { clearTimeout(timer); }
 }
 
@@ -2707,7 +2707,7 @@ function MissingContent({onBack}){
   return (
     <div className="pt-16 px-5 pb-8">
       <BackButton onClick={onBack}/>
-      <div className="mt-6"><EmptyState title="Conteúdo não encontrado" hint="Ele pode ter sido removido deste dispositivo."/></div>
+      <div className="mt-6"><EmptyState title="Conteúdo não encontrado" hint="Ele pode ter sido apagado deste aparelho."/></div>
     </div>
   );
 }
@@ -2805,7 +2805,7 @@ class ErrorBoundary extends React.Component{
       return (
         <div role="alert" className="pt-24 px-5 text-center">
           <p className="text-[18px] font-bold text-sf-text">Algo deu errado nesta tela</p>
-          <p className="text-[13px] text-sf-muted mt-2 leading-relaxed">Seus dados continuam salvos neste dispositivo. Volte ao início para continuar.</p>
+          <p className="text-[13px] text-sf-muted mt-2 leading-relaxed">Seus dados continuam salvos neste aparelho. Volte ao início para continuar.</p>
           <button type="button" onClick={()=>{ this.setState({error:null}); if(this.props.onReset) this.props.onReset(); }}
             className="sf-btn sf-btn-primary mt-5 h-12 px-6 text-[14px] font-semibold">Voltar ao início</button>
         </div>
@@ -3336,7 +3336,7 @@ function mascotLine(mood, name, streak, next, milestone){
     case 'celebrate': return `Marco novo: ${milestone ? milestone.t : `${streak} dias`}, ${streak} ${plural(streak,'dia seguido','dias seguidos')}. Que constância bonita!`;
     case 'happy': return next ? `Estudo de hoje feito. ${next.d - streak === 1 ? 'Falta 1 dia' : `Faltam ${next.d - streak} dias`} para "${next.t}".` : 'Estudo de hoje feito. Você já passou por todos os marcos.';
     case 'waiting': return `Sua sequência de ${streak} ${plural(streak,'dia','dias')} continua. Uma sessão curta hoje já conta.`;
-    case 'returning': return 'Que bom te ver de novo. Uma sessão curta recomeça a sequência, no seu ritmo.';
+    case 'returning': return 'Que bom te ver de novo. Uma sessão curta já recomeça a sequência.';
     default: return `Oi! Eu sou ${name}. Sua primeira sessão de foco acende a nossa trilha.`;
   }
 }
@@ -4056,7 +4056,7 @@ function ModuleDrawer({c, topics, nextTopicIdx, doneCount, nextMeta, onOpen}){
       <div className="sf-drawer" data-open={open ? 'true' : 'false'}>
         <div className="sf-drawer-inner">
           <div id={listId} hidden={!open} className="px-1 pb-2">
-            <p className="text-[14px] leading-[18px] text-sf-muted px-3 pb-1" style={{borderTop:'1px solid var(--border)', paddingTop:12}}>A ordem é uma sugestão: qualquer módulo pode ser aberto.</p>
+            <p className="text-[14px] leading-[18px] text-sf-muted px-3 pb-1" style={{borderTop:'1px solid var(--border)', paddingTop:12}}>Você pode abrir os módulos em qualquer ordem.</p>
             <ol className="list-none p-0 m-0">
               {topics.map((t,i)=>{
                 const isDone = !!t.done;
@@ -5163,7 +5163,7 @@ function PlannerScreen({initialDate}){
       <div className="flex items-start justify-between mt-1">
         <div>
           <SubTitle>Mês do Plano</SubTitle>
-          <p className="text-[14px] text-sf-muted mt-1">Planeje o dia, execute e conclua.</p>
+          <p className="text-[14px] text-sf-muted mt-1">Anote o que precisa fazer e marque quando terminar.</p>
         </div>
         {sel!==today && (
           <button type="button" onClick={()=>selectDay(today)}
@@ -5337,7 +5337,7 @@ function SubjectSheetForm({sheet}){
       <input id="subject-name" ref={nameRef} value={builtin ? subjName(editingId) : name} onChange={e=>setName(e.target.value)} readOnly={builtin} maxLength={40}
         placeholder="Ex.: Biologia" className={INPUT_CLS} style={{color: builtin ? 'var(--text-secondary)' : 'var(--text-primary)'}}
         aria-invalid={showErr && !builtin && !name.trim() ? 'true' : undefined} aria-describedby={builtin ? 'subject-name-hint' : ((showErr && !name.trim()) || dupId ? 'subject-name-err' : undefined)}/>
-      {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">O nome das matérias padrão não muda; a identificação e a cor, sim.</p>}
+      {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">Nas matérias que já vêm no Study, dá para trocar o ícone e a cor, mas não o nome.</p>}
       {showErr && !builtin && !name.trim() && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Dê um nome para a matéria.</p>}
       {dupId && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Já existe a matéria {subjName(dupId)}. Use outro nome ou escolha a matéria existente.</p>}
 
@@ -5447,7 +5447,7 @@ function JornadaScreen({contentId}){
     return (
       <div className="pt-16 px-5 pb-8">
         <BackButton onClick={closeView}/>
-        <h1 className="text-[22px] font-bold text-sf-text mt-1">Jornada de Aprendizado</h1>
+        <h1 className="text-[22px] font-bold text-sf-text mt-1">Suas trilhas</h1>
         <div className="mt-6">
           <EmptyState Icon={IconRocket} title="Você ainda não começou nenhuma matéria.">
             <button type="button" onClick={()=>goTab('estudar')}
@@ -5470,7 +5470,7 @@ function JornadaScreen({contentId}){
     <div className="pt-16 px-5 pb-8">
       <BackButton onClick={()=>openDetalhe(c.id)} label="Voltar ao conteúdo"/>
       <div className="mt-1"><SubjectTag subjectId={c.subjectId}/></div>
-      <h1 className="text-[22px] font-bold text-sf-text mt-2">Jornada de Aprendizado</h1>
+      <h1 className="text-[22px] font-bold text-sf-text mt-2">Suas trilhas</h1>
       <p className="text-[12px] text-sf-muted mt-1">{c.title} · siga as etapas para dominar este conteúdo</p>
 
       {total === 0 ? (
@@ -5755,11 +5755,11 @@ function ConfiguracoesScreen(){
           <button type="button" className="sf-roundbtn" aria-label="Aumentar a meta em 5 minutos" onClick={()=>setFocusMin(settings.focusMin + 5)} disabled={settings.focusMin >= 120}><IconPlus size={18}/></button>
         </div>
       </SettingsGroup>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Meta sugerida ao começar um foco. Dá para mudar antes de começar. Vai de 5 a 120 min.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">É o tempo que aparece quando você começa um foco. Dá para mudar antes de começar, de 5 a 120 min.</p>
 
       <SettingsLabel>Aparência</SettingsLabel>
       <SettingsGroup><div className="py-3"><ThemeSegmented/></div></SettingsGroup>
-      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Sistema acompanha o tema do aparelho.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted mt-2">Em Sistema, o Study segue o tema claro ou escuro do aparelho.</p>
 
       <SettingsLabel>Geral</SettingsLabel>
       <SettingsGroup>
@@ -5774,7 +5774,7 @@ function ConfiguracoesScreen(){
       </SettingsGroup>
 
       <SettingsLabel>Em breve</SettingsLabel>
-      <p className="text-[14px] leading-[20px] text-sf-muted">Pausas do Pomodoro, sons de início e fim, lembrete diário e notificações ainda não estão disponíveis.</p>
+      <p className="text-[14px] leading-[20px] text-sf-muted">Pausas do Pomodoro, sons de início e fim, lembrete diário e notificações.</p>
       <p className="text-center text-[14px] text-sf-muted mt-8">Study v1.0.0</p>
     </div>
   );
@@ -5839,7 +5839,7 @@ function TarefasScreen(){
   return (
     <div className="pt-16 px-5 pb-8 relative">
       <BackButton onClick={closeView}/>
-      <h1 className="text-[24px] font-bold text-sf-text mt-1">Lista de Tarefas</h1>
+      <h1 className="text-[24px] font-bold text-sf-text mt-1">Tarefas</h1>
       <p className="text-[12px] text-sf-muted mt-1 tnum">{pending.length} {pending.length===1 ? 'pendente' : 'pendentes'} · {done.length} {done.length===1 ? 'concluída' : 'concluídas'}</p>
 
       {adding && (
@@ -6021,7 +6021,7 @@ function YouTubeVideoScreen({video, context}){
       <div className="mt-3 rounded-2xl p-4" style={{background:'var(--card-bg)'}}>
         <h2 className="text-[13px] font-bold text-sf-text">Sobre este vídeo</h2>
         <p className="text-[12px] text-sf-muted mt-2 leading-relaxed break-words">
-          {video.description || 'Conteúdo encontrado pelo Study no YouTube.'}
+          {video.description || 'Vídeo encontrado no YouTube.'}
         </p>
       </div>
 
@@ -6031,7 +6031,7 @@ function YouTubeVideoScreen({video, context}){
           {relState === 'loading' && <p role="status" className="text-[12px] text-sf-muted">Carregando vídeos relacionados...</p>}
           {relState === 'error' && (
             <InlineError title="Não foi possível carregar os vídeos relacionados."
-              hint="Confira sua conexão e se o servidor do Study está em execução." onRetry={()=>setRelKey(k=>k+1)}/>
+              hint="Confira sua conexão. Se ela estiver boa, o Study pode estar fora do ar: tente de novo em alguns minutos." onRetry={()=>setRelKey(k=>k+1)}/>
           )}
           {relState === 'ok' && related.map(v=>(
             <button type="button" key={v.id} onClick={()=>openYouTubeVideo(v, null, context)}
@@ -6293,7 +6293,7 @@ function WatchRuleNote({ratio, done, unknownDuration}){
     <div className="mt-3 rounded-xl px-3 py-2.5 flex items-start gap-2.5" style={{background:'var(--bg-surface)', border:'1px solid var(--border)'}}>
       <span className="text-sf-muted inline-flex mt-0.5 shrink-0" aria-hidden="true"><IconInfo size={16}/></span>
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] leading-[20px] text-sf-muted">O Study marcará este módulo como concluído quando você assistir a pelo menos 75% do vídeo.</p>
+        <p className="text-[14px] leading-[20px] text-sf-muted">O módulo fica concluído quando você assiste a pelo menos 75% do vídeo.</p>
         {!done && (
           <div className="mt-2">
             <div className="flex items-center justify-between gap-2">
@@ -6388,7 +6388,7 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const relatedEl = (title)=> recommended.length > 0 && (
     <section aria-labelledby={`rel-${topicIndex}`}>
       <PanelHead id={`rel-${topicIndex}`}>{title}</PanelHead>
-      <p className="text-[13px] leading-[18px] text-sf-muted -mt-1 mb-1">Trocar de aula muda o vídeo deste módulo. O tempo assistido é contado por vídeo.</p>
+      <p className="text-[13px] leading-[18px] text-sf-muted -mt-1 mb-1">Se você trocar de aula, o vídeo deste módulo muda. O tempo assistido conta separado para cada vídeo.</p>
       <div>
         {recommended.map(v=>(
           <button type="button" key={v.id} onClick={()=>chooseVideo(v)} aria-label={`Assistir neste módulo: ${v.title}`}
@@ -6494,12 +6494,12 @@ function ReadingSources({sources, ordinal={}}){
             {!has && (
               <p className="text-[14px] leading-[20px] text-sf-muted mt-3">
                 {sources.status === 'unavailable'
-                  ? 'Este texto foi gerado sem pesquisa na web, então não há fontes para mostrar. Confira datas, números e nomes em um material de referência.'
-                  : 'O Gemini não usou páginas da web para este texto, então não há fontes verificáveis. Confira datas, números e nomes em um material de referência.'}
+                  ? 'Este texto foi escrito sem pesquisa na web, então não há fontes para mostrar. Vale conferir datas, números e nomes em outro material.'
+                  : 'Este texto não usou páginas da web, então não há fontes para conferir. Vale checar datas, números e nomes em outro material.'}
               </p>
             )}
             {cited.length > 0 && (<>
-              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Sustentam o texto</h3>
+              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Usadas no texto</h3>
               <ul className="list-none p-0 m-0">{cited.map(row)}</ul>
             </>)}
             {other.length > 0 && (<>
