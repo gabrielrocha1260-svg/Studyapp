@@ -1644,15 +1644,19 @@ function normalizeYouTubeItem(item){
 }
 
 /* status: ok | empty (busca válida sem resultados) | error (falha de conexão/servidor) */
-async function searchYouTubeVideosDetailed(query){
+/* ctx (opcional): {subject, content, module, currentTitle}. Com a matéria, o servidor confere com a IA se cada vídeo
+   é do assunto certo (homônimos de outras áreas saem) e diz se o vídeo salvo no módulo serve (currentRelevant). */
+async function searchYouTubeVideosDetailed(query, ctx){
   if(!YOUTUBE_CONFIG.enabled || !YOUTUBE_CONFIG.proxyUrl) return { status:'error', videos:[], reason:'disabled' };
   const q = String(query || '').trim();
   if(q.length < YOUTUBE_CONFIG.minQueryLength) return { status:'empty', videos:[] };
   try{
-    const data = await apiRequest(YOUTUBE_CONFIG.proxyUrl, { params: { q } });
+    const extra = {};
+    if(ctx){ ['subject','content','module','currentTitle'].forEach(k => { if(ctx[k]) extra[k] = String(ctx[k]).slice(0, 200); }); }
+    const data = await apiRequest(YOUTUBE_CONFIG.proxyUrl, { params: { q, ...extra } });
     const items = Array.isArray(data && data.videos) ? data.videos : [];
     const videos = items.map(normalizeYouTubeItem).filter(Boolean);
-    return { status: videos.length ? 'ok' : 'empty', videos };
+    return { status: videos.length ? 'ok' : 'empty', videos, checked: !!(data && data.checked), currentRelevant: data && typeof data.currentRelevant === 'boolean' ? data.currentRelevant : null };
   }catch(error){
     console.warn('[YouTube] Erro ao buscar vídeos:', error);
     return { status:'error', videos:[], reason: error.kind || 'network' };
@@ -2409,6 +2413,11 @@ function AppProvider({children}){
      assistido continuar valendo para o mesmo vídeo depois de atualizar a página. */
   const setTopicVideo = (contentId, topicIndex, video)=>{
     const v = cleanTopicVideo(video);
+    if(video === null){   /* vídeo salvo era de outro assunto e não há substituto: tira do módulo */
+      setContents(prev => prev.map(x => (x.id !== contentId || !x.topics || !x.topics[topicIndex] || !x.topics[topicIndex].video) ? x
+        : {...x, topics: x.topics.map((t, i) => { if(i !== topicIndex) return t; const {video: _v, ...rest} = t; return rest; })}));
+      return;
+    }
     if(!v) return;
     setContents(prev => prev.map(x => {
       if(x.id !== contentId || !x.topics || !x.topics[topicIndex]) return x;
@@ -6632,6 +6641,7 @@ function resumePointFor(entry){
 function YouTubePlayer({video, trackKey, onWatch, onPlay}){
   const boxRef = useRef(null);
   const playerRef = useRef(null);
+  const resumeRef = useRef(0);
   const [resumeAt, setResumeAt] = useState(0);
   const [status, setStatus] = useState('loading');   // loading | ready | error
   const [errCode, setErrCode] = useState(null);
@@ -6648,6 +6658,7 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
     };
     const startAt = resumePointFor(tr.entry);
     setResumeAt(startAt);
+    resumeRef.current = startAt;
     const emit = ()=>{ if(tr.entry && watchRef.current) watchRef.current({...tr.entry, segs: tr.entry.segs.map(x => [...x])}); };
     const save = (force)=>{
       if(!tr.entry || !tr.dirty) return;
@@ -6671,6 +6682,11 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       if(Math.abs((tr.entry.pos || 0) - t) >= 1){ tr.entry.pos = t; tr.dirty = true; }
       emit(); save(false);
     };
+    /* Fechar a aba, recarregar ou trocar de app no celular também salva o ponto do vídeo. */
+    const flush = ()=>{ try{ if(tr.playing) sample(); }catch(e){} save(true); };
+    const onVis = ()=>{ if(document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
     const host = document.createElement('div');
     host.style.width = '100%'; host.style.height = '100%';
     if(boxRef.current){ boxRef.current.innerHTML = ''; boxRef.current.appendChild(host); }
@@ -6686,6 +6702,8 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
             if(cancelled) return;
             setStatus('ready');
             playerRef.current = player;
+            /* Alguns navegadores ignoram o "start" do player: confirma a posição ao ficar pronto. */
+            if(resumeRef.current){ try{ player.seekTo(resumeRef.current, true); }catch(e){} }
             try{ const iframe = player.getIframe(); iframe.setAttribute('title', `Videoaula: ${video.title || 'vídeo do YouTube'}`); }catch(e){}
             if(tr.entry){ try{ const d = Number(player.getDuration()) || 0; if(d > 0 && Math.abs(d - (tr.entry.dur||0)) > 1){ tr.entry.dur = d; tr.dirty = true; } }catch(e){} emit(); }
           },
@@ -6694,6 +6712,10 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
             const S = YT.PlayerState;
             if(e.data === S.PLAYING){
               tr.playing = true;
+              /* Começou do zero mesmo com ponto salvo (o "start" foi ignorado): leva para onde a pessoa parou, uma vez. */
+              if(resumeRef.current && !tr.started){
+                try{ if((Number(player.getCurrentTime()) || 0) < resumeRef.current - 3) player.seekTo(resumeRef.current, true); }catch(err){}
+              }
               try{ tr.last = Number(player.getCurrentTime()) || 0; }catch(err){ tr.last = null; }
               tr.lastWall = performance.now();
               if(!tr.started){ tr.started = true; if(playRef.current) playRef.current(); }
@@ -6714,6 +6736,8 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
 
     return ()=>{
       cancelled = true;
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVis);
       if(timer) clearInterval(timer);
       try{ if(tr.playing) sample(); }catch(e){}
       save(true);
@@ -6721,7 +6745,7 @@ function YouTubePlayer({video, trackKey, onWatch, onPlay}){
       playerRef.current = null;
     };
   }, [video && video.id, trackKey]);
-  const restart = ()=>{ const pl = playerRef.current; try{ if(pl){ pl.seekTo(0, true); pl.playVideo(); } }catch(e){} setResumeAt(0); };
+  const restart = ()=>{ resumeRef.current = 0; const pl = playerRef.current; try{ if(pl){ pl.seekTo(0, true); pl.playVideo(); } }catch(e){} setResumeAt(0); };
 
   const notEmbeddable = errCode === 101 || errCode === 150;
   return (
@@ -6793,16 +6817,19 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   useEffect(()=>{
     let cancelled = false;
     setState(saved ? 'ok' : 'loading'); setResults([]);
-    searchYouTubeVideosDetailed(query).then(res=>{
+    const subjLabel = subjName(content.subjectId);
+    searchYouTubeVideosDetailed(query, {subject: subjLabel !== 'Geral' ? subjLabel : '', content: content.title, module: topic.t, currentTitle: saved ? saved.title : ''}).then(res=>{
       if(cancelled) return;
-      if(res.status === 'ok'){
+      if(res.status === 'ok' || (res.checked && res.currentRelevant === false)){
         setResults(res.videos);
         /* Vídeo escolhido pela busca antiga (sem a matéria): se ele não aparece entre os resultados da busca nova,
            provavelmente é de outro assunto (ex.: "tríade" de ortopedia numa aula de música) e é trocado. */
         /* Não troca um vídeo que já começou a tocar: a busca pode demorar a responder e a troca reiniciaria o player. */
-        const stale = saved && !startedRef.current && !(saved.qv >= VIDEO_QUERY_VERSION) && !res.videos.some(v => v.id === saved.id);
-        if(!saved || stale) setTopicVideo(content.id, topicIndex, {...res.videos[0], qv: VIDEO_QUERY_VERSION});
-        setState('ok');
+        const inResults = saved && res.videos.some(v => v.id === saved.id);
+        const stale = saved && !startedRef.current && !inResults && (res.checked ? res.currentRelevant === false : !(saved.qv >= VIDEO_QUERY_VERSION));
+        if((!saved || stale) && res.videos[0]) setTopicVideo(content.id, topicIndex, {...res.videos[0], qv: VIDEO_QUERY_VERSION});
+        else if(stale && !res.videos[0]){ setTopicVideo(content.id, topicIndex, null); setState('empty'); return; }
+        setState(res.videos.length || (saved && !stale) ? 'ok' : 'empty');
       } else if(!saved){
         setState(res.status === 'empty' ? 'empty' : 'error');
       }
@@ -6850,10 +6877,10 @@ function VideoModule({content, topic, topicIndex, onComplete}){
   const completeEl = current && (done ? (
     <div className="mt-6">
       <p role="status" className="text-[14px] leading-[20px] font-semibold text-sf-text flex items-center gap-2"><span className="text-sf-success inline-flex" aria-hidden="true"><IconCheck size={16}/></span>Módulo concluído</p>
-      <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-secondary mt-3 h-12 text-[14px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>Ver todos os módulos</button>
+      <button type="button" onClick={()=>onComplete()} className={`sf-btn sf-btn-secondary mt-3 h-12 text-[14px] w-full`}>Ver todos os módulos</button>
     </div>
   ) : (
-    <button type="button" onClick={()=>onComplete({manual:true})} className={`sf-btn ${eligible ? 'sf-btn-primary' : 'sf-btn-secondary'} mt-6 h-12 text-[15px] ${desk ? 'px-6 min-w-[280px]' : 'w-full'}`}>
+    <button type="button" onClick={()=>onComplete({manual:true})} className={`sf-btn ${eligible ? 'sf-btn-primary' : 'sf-btn-secondary'} mt-6 h-12 text-[15px] w-full`}>
       Concluir módulo
     </button>
   ));
@@ -6934,13 +6961,15 @@ function ReadingSources({sources, ordinal={}, onRetry}){
   const cited = items.filter(x => x.cited), other = items.filter(x => !x.cited);
   const has = items.length > 0;
   const id = 'fontes-leitura';
-  const summary = has ? `${items.length} ${plural(items.length, 'fonte consultada', 'fontes consultadas')} na web` : 'Sem fontes verificáveis';
+  const isRef = sources.status === 'reference';
+  const summary = has ? (isRef ? `${items.length} ${plural(items.length, 'artigo de referência', 'artigos de referência')}` : `${items.length} ${plural(items.length, 'fonte consultada', 'fontes consultadas')} na web`) : 'Sem fontes verificáveis';
   const row = (x)=>(
     <li key={x.uri} className="py-2.5 sf-row-div">
       <a href={x.uri} target="_blank" rel="noopener noreferrer nofollow" className="group flex items-start gap-3 no-underline">
         <span className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 tnum" style={{background:'var(--bg-overlay)', color:'var(--text-secondary)'}} aria-hidden="true">{x.n}</span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[15px] leading-[20px] font-semibold text-sf-text break-words group-hover:underline">{domainOf(x.uri, x.title)}</span>
+          <span className="block text-[15px] leading-[20px] font-semibold text-sf-text break-words group-hover:underline">{isRef ? x.title : domainOf(x.uri, x.title)}</span>
+          {isRef && <span className="block text-[13px] leading-[16px] font-medium text-sf-muted mt-0.5">{domainOf(x.uri)}</span>}
           {(()=>{ const ps = (x.paragraphs || []).map(p => ordinal[p]).filter(Boolean); return ps.length > 0 && <span className="block text-[13px] leading-[16px] font-medium text-sf-muted mt-0.5">Sustenta {plural(ps.length, 'o parágrafo', 'os parágrafos')} {ps.join(', ')}</span>; })()}
         </span>
         <span className="text-sf-muted shrink-0 mt-0.5 text-[13px]" aria-hidden="true">↗</span>
@@ -6974,14 +7003,16 @@ function ReadingSources({sources, ordinal={}, onRetry}){
               <button type="button" onClick={onRetry} className="sf-btn sf-btn-secondary h-11 px-4 mt-3 text-[14px]">Gerar de novo com pesquisa na web</button>
             )}
             {cited.length > 0 && (<>
-              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">Usadas no texto</h3>
+              <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-3 mb-0">{isRef ? 'Artigos usados como base do texto' : 'Usadas no texto'}</h3>
               <ul className="list-none p-0 m-0">{cited.map(row)}</ul>
             </>)}
             {other.length > 0 && (<>
               <h3 className="text-[14px] leading-[18px] font-semibold text-sf-muted mt-4 mb-0">Também consultadas na pesquisa</h3>
               <ul className="list-none p-0 m-0">{other.map(row)}</ul>
             </>)}
-            {has && <p className="text-[13px] leading-[16px] font-medium text-sf-faint mt-3">Links encontrados pela Pesquisa Google durante a geração do texto. O Study não sugere leituras extras para não indicar páginas que não foram consultadas.</p>}
+            {has && <p className="text-[13px] leading-[16px] font-medium text-sf-faint mt-3">{isRef
+              ? 'O texto foi escrito a partir destes artigos da Wikipédia. Abra para conferir e se aprofundar.'
+              : 'Links encontrados pela Pesquisa Google durante a geração do texto. O Study não sugere leituras extras para não indicar páginas que não foram consultadas.'}</p>}
             {sources.searchEntryPoint && <SearchSuggestions html={sources.searchEntryPoint}/>}
           </div>
         </div>
