@@ -537,15 +537,11 @@
     .sf-desk .sf-subj-grid > li.sf-row-div{ border-bottom:1px solid var(--border); }
   }
   @media (min-width:1440px){ .sf-desk .sf-subj-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
-  /* Explorar: busca + "Criar conteúdo" na mesma linha. No computador a busca fica no centro exato da tela. */
+  /* Explorar: busca + "Criar conteúdo" na mesma linha. A busca começa alinhada ao título e vai até o botão, que fica na borda direita. */
   .sf-explore-bar{ display:flex; align-items:center; gap:8px; }
   .sf-explore-bar > .sf-subj-search{ flex:1 1 auto; min-width:0; }
   @media (max-width:479px){ .sf-explore-bar .sf-create-label{ display:none; } .sf-explore-bar .sf-create-menu > button{ width:48px; padding:0; justify-content:center; } }
-  @media (min-width:1024px){
-    .sf-desk .sf-explore-bar{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,560px) minmax(0,1fr); gap:12px; margin-top:24px; }
-    .sf-desk .sf-explore-bar > .sf-subj-search{ grid-column:2; max-width:none; }
-    .sf-desk .sf-explore-bar > .sf-create-menu{ grid-column:3; justify-self:start; }
-  }
+  @media (min-width:1024px){ .sf-desk .sf-explore-bar{ gap:12px; margin-top:24px; } }
   .sf-create-menu{ position:relative; flex:none; }
   .sf-create-list{ position:absolute; right:0; top:calc(100% + 8px); z-index:40; width:300px; padding:6px; border-radius:var(--radius-lg);
     background:var(--bg-surface); border:1px solid var(--border); box-shadow:var(--shadow-modal); animation:sfpop var(--dur-fast) var(--ease-out) both; }
