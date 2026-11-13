@@ -532,12 +532,29 @@
   .sf-desk main .sf-screen-in > .sf-full{ max-width:none; }
   /* Explorar no computador: matérias em grade de cartões (as gavetas continuam funcionando) */
   @media (min-width:1024px){
-    .sf-desk .sf-subj-search{ max-width:560px; }
     .sf-desk .sf-subj-grid{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; align-items:start; margin-top:12px !important; }
     .sf-desk .sf-subj-grid > li{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:0 16px; }
     .sf-desk .sf-subj-grid > li.sf-row-div{ border-bottom:1px solid var(--border); }
   }
   @media (min-width:1440px){ .sf-desk .sf-subj-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  /* Explorar: busca + "Criar conteúdo" na mesma linha. No computador a busca fica no centro exato da tela. */
+  .sf-explore-bar{ display:flex; align-items:center; gap:8px; }
+  .sf-explore-bar > .sf-subj-search{ flex:1 1 auto; min-width:0; }
+  @media (max-width:479px){ .sf-explore-bar .sf-create-label{ display:none; } .sf-explore-bar .sf-create-menu > button{ width:48px; padding:0; justify-content:center; } }
+  @media (min-width:1024px){
+    .sf-desk .sf-explore-bar{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,560px) minmax(0,1fr); gap:12px; margin-top:24px; }
+    .sf-desk .sf-explore-bar > .sf-subj-search{ grid-column:2; max-width:none; }
+    .sf-desk .sf-explore-bar > .sf-create-menu{ grid-column:3; justify-self:start; }
+  }
+  .sf-create-menu{ position:relative; flex:none; }
+  .sf-create-list{ position:absolute; right:0; top:calc(100% + 8px); z-index:40; width:300px; padding:6px; border-radius:var(--radius-lg);
+    background:var(--bg-surface); border:1px solid var(--border); box-shadow:var(--shadow-modal); animation:sfpop var(--dur-fast) var(--ease-out) both; }
+  .sf-create-item{ display:flex; align-items:center; gap:12px; width:100%; min-height:56px; padding:8px 10px; border:0; border-radius:var(--radius-md);
+    background:transparent; font:inherit; cursor:pointer; text-align:left; }
+  .sf-create-item:focus-visible{ outline-offset:-2px; }
+  @media (hover:hover){ .sf-create-item:hover{ background:var(--bg-elevated); } }
+  .sf-create-item:focus{ background:var(--bg-elevated); }
+  .sf-create-ic{ width:36px; height:36px; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:var(--brand-tint-2); color:var(--blue-300); }
   .sf-subj-masonry{ display:flex; gap:12px; align-items:flex-start; }
   .sf-subj-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:12px; }
   .sf-subj-col > li{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:0 16px; }
@@ -623,6 +640,16 @@
   /* Auditoria v3: modo foco centralizado em telas largas; contador da avaliação sem barra de abas no desktop */
   @media (min-width:600px){ .sf-focus-inner{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; } }
   .sf-desk .sf-quizbar{ bottom:0; }
+  /* Modo foco no computador: moldura larga, conteúdo centralizado e cronômetro em destaque */
+  .sf-focus-desk{ min-height:100dvh; display:flex; flex-direction:column; width:100%; max-width:1104px; margin:0 auto; padding:24px 48px 48px; }
+  .sf-focus-desk-top{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; min-height:44px; }
+  .sf-focus-desk-main{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; max-width:880px; margin:0 auto; padding:40px 0 24px; }
+  .sf-focus-desk-main h2{ max-width:760px; }
+  .sf-focus-desk-time{ font-size:clamp(120px, 13vw, 168px); line-height:1; font-weight:700; letter-spacing:-.03em; color:var(--text-primary); margin-top:40px; margin-bottom:16px; }
+  .sf-focus-desk-actions{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:40px; }
+  .sf-focus-desk-trail{ width:100%; max-width:640px; margin-top:56px; }
+  .sf-focus-dot{ width:8px; height:8px; border-radius:999px; background:var(--success); }
+  .sf-focus-dot[data-paused="true"]{ background:var(--warning); }
   .sf-enem-tag{ display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:999px; background:var(--brand-tint-2); color:var(--blue-300);
     font-size:12px; line-height:16px; font-weight:600; white-space:nowrap; }
   .sf-hue-wheel{ background:conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); }
@@ -4066,6 +4093,58 @@ function contentStateLabel(c){
   return modulesLabel(c);
 }
 function EnemTag(){ return <span className="sf-enem-tag">Cai no ENEM</span>; }
+/* Botão "+ Criar conteúdo" do Explorar: abre uma lista com as duas formas de criar.
+   Criar matéria (nova pasta, já com o primeiro conteúdo) ou criar conteúdo dentro de uma matéria que já existe. */
+function CreateMenu({lock, isVisitor, onSubject, onContent}){
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const btnRef = useRef(null);
+  const itemsRef = useRef([]);
+  useEffect(()=>{
+    if(!open) return;
+    const onDoc = (e)=>{ if(wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onKey = (e)=>{ if(e.key === 'Escape'){ e.stopPropagation(); setOpen(false); if(btnRef.current) btnRef.current.focus(); } };
+    document.addEventListener('pointerdown', onDoc);
+    document.addEventListener('keydown', onKey, true);
+    const t = setTimeout(()=>{ if(itemsRef.current[0]) itemsRef.current[0].focus(); }, 0);
+    return ()=>{ document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey, true); clearTimeout(t); };
+  }, [open]);
+  const pick = (fn)=>{ setOpen(false); fn(); };
+  const onMenuKey = (e)=>{
+    const list = itemsRef.current.filter(Boolean);
+    const i = list.indexOf(document.activeElement);
+    if(e.key === 'ArrowDown'){ e.preventDefault(); list[(i + 1) % list.length].focus(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
+    else if(e.key === 'Tab'){ setOpen(false); }
+  };
+  const items = [
+    {key:'materia', label:'Criar matéria', hint:'Uma matéria nova, já com o primeiro conteúdo', Icon:IconBook, on:onSubject},
+    {key:'conteudo', label:'Criar conteúdo', hint:'Dentro de uma matéria que você já tem', Icon:IconPlus, on:onContent},
+  ];
+  return (
+    <div className="sf-create-menu" ref={wrapRef}>
+      <button type="button" ref={btnRef} onClick={()=>setOpen(o=>!o)} aria-haspopup="menu" aria-expanded={open} aria-controls="sf-create-list"
+        className="sf-btn sf-btn-primary h-12 px-4 text-[15px] font-semibold inline-flex items-center gap-2 whitespace-nowrap"
+        aria-label={isVisitor ? 'Criar conteúdo (pede um perfil)' : 'Criar conteúdo'}>
+        <IconPlus size={18}/><span className="sf-create-label">Criar conteúdo</span>
+      </button>
+      {open && (
+        <div id="sf-create-list" role="menu" aria-label="O que você quer criar?" className="sf-create-list" onKeyDown={onMenuKey}>
+          {items.map((it, i)=>(
+            <button key={it.key} type="button" role="menuitem" ref={el => itemsRef.current[i] = el} onClick={()=>pick(it.on)} className="sf-create-item">
+              <span className="sf-create-ic" aria-hidden="true"><it.Icon size={18}/></span>
+              <span className="min-w-0 flex flex-col text-left">
+                <span className="text-[15px] leading-[20px] font-semibold text-sf-text inline-flex items-center gap-1.5">{it.label}{lock}</span>
+                <span className="text-[13px] leading-[18px] text-sf-muted">{it.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview, onDelete}){
   const [stored, setStored] = useDrawerState(`materia:${sid}`);
   const open = searching ? true : stored;
@@ -4200,19 +4279,19 @@ function ExplorarScreen(){
 
   return (
     <div className="sf-wide pt-16 px-5 pb-8">
-      <div className="flex items-start justify-between gap-3">
-        <ScreenTitle>Explorar</ScreenTitle>
-        <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-secondary h-11 px-4 text-[14px] shrink-0 inline-flex items-center gap-1.5"
-          aria-label={isVisitor ? 'Criar conteúdo (pede um perfil)' : undefined}>{lock}Criar conteúdo</button>
-      </div>
+      <ScreenTitle>Explorar</ScreenTitle>
 
-      <label className="sf-fieldbox sf-subj-search mt-5 h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
-        <span className="text-sf-muted inline-flex" aria-hidden="true"><IconSearch size={20}/></span>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar conteúdos ou matérias"
-          aria-label="Buscar conteúdos ou matérias" enterKeyHint="search" autoComplete="off"
-          className="bg-transparent border-0 outline-none text-[16px] text-sf-text flex-1 min-w-0 h-11" style={{fontFamily:'inherit'}}/>
-        {query && <button type="button" onClick={()=>setQuery('')} aria-label="Limpar busca" className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px]">Limpar</button>}
-      </label>
+      {/* Busca centralizada na tela; o botão "+ Criar conteúdo" fica ao lado e abre a escolha entre matéria e conteúdo. */}
+      <div className="sf-explore-bar mt-5">
+        <label className="sf-fieldbox sf-subj-search h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
+          <span className="text-sf-muted inline-flex" aria-hidden="true"><IconSearch size={20}/></span>
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar conteúdos ou matérias"
+            aria-label="Buscar conteúdos ou matérias" enterKeyHint="search" autoComplete="off"
+            className="bg-transparent border-0 outline-none text-[16px] text-sf-text flex-1 min-w-0 h-11" style={{fontFamily:'inherit'}}/>
+          {query && <button type="button" onClick={()=>setQuery('')} aria-label="Limpar busca" className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px]">Limpar</button>}
+        </label>
+        <CreateMenu lock={lock} isVisitor={isVisitor} onSubject={()=>openSubjectSheet({})} onContent={()=>openCriarConteudo()}/>
+      </div>
 
       {searching && groups.length === 0 ? (
         <div className="mt-8" role="status">
@@ -4240,11 +4319,6 @@ function ExplorarScreen(){
               </div>
             );
           })()}
-          {!searching && (
-            <button type="button" onClick={()=>openSubjectSheet({})} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 mt-2 text-[14px] font-semibold inline-flex items-center gap-1.5">
-              <IconPlus size={16}/> Nova matéria {lock}
-            </button>
-          )}
         </section>
       )}
 
@@ -4610,8 +4684,10 @@ function SessionNav({compact}){
 /* Navegação lateral (Figma: "Navegação lateral"): expandida a partir de 1280 px, compacta (trilho) entre 1024 e 1279. */
 /* No computador, Perfil sai da lista e vira o bloco de conta no rodapé da navegação (quem está usando + tipo de acesso). */
 function SideNav({compact, onToggle}){
-  const {tab: rawTab, goTab, view, user} = useApp();
-  const tab = activeTabFor(rawTab, view);
+  const {tab: rawTab, goTab, view, user, goToView} = useApp();
+  /* Configurações fica na navegação lateral (acima da conta); com ela aberta, nenhuma aba aparece marcada. */
+  const onSettings = !!(view && view.name === 'configuracoes');
+  const tab = onSettings ? null : activeTabFor(rawTab, view);
   return (
     <nav aria-label="Navegação principal" className="sf-sidenav" data-compact={compact ? 'true' : 'false'}>
       <button type="button" onClick={onToggle} className="sf-sidenav-brand bg-transparent border-0 cursor-pointer"
@@ -4625,6 +4701,10 @@ function SideNav({compact, onToggle}){
       ))}
       <div className="sf-sidenav-foot">
         <SessionNav compact={compact}/>
+        <button type="button" onClick={()=>goToView({name:'configuracoes'})} aria-current={onSettings ? 'page' : undefined}
+          className="sf-sidenav-item" title={compact ? 'Configurações' : undefined}>
+          <IconSettings size={20}/><span>Configurações</span>
+        </button>
         <button type="button" onClick={()=>goTab('perfil')} aria-current={tab==='perfil' ? 'page' : undefined} className="sf-sidenav-account"
           aria-label={`Perfil: ${user.name}, ${user.kindLabel}`} title={compact ? `${user.name} · ${user.kindLabel}` : undefined}>
           <ProfileAvatar user={user} size={32}/>
@@ -4668,10 +4748,12 @@ function ConfirmEndModal(){
   );
 }
 
-/* Modo foco (A13/A14): cronômetro em SF/Display (Source Sans 3), contagem regressiva até a meta. */
+/* Modo foco (A13/A14): cronômetro em SF/Display (Source Sans 3), contagem regressiva até a meta.
+   No computador (≥1024 px) a tela usa a moldura larga: tudo centralizado, cronômetro em destaque e ações lado a lado. */
 function FocusScreen(){
   const {session, elapsedSec, timerExpanded, setTimerExpanded, fullScreenFocus, setFullScreenFocus, pauseSession, resumeSession, setConfirmEnd} = useApp();
   const {c, topic, typeLabel} = useSessionContext();
+  const desk = isDeskBand(useBand());
   if(!(timerExpanded || fullScreenFocus) || !session) return null;
   const close = ()=>{ setTimerExpanded(false); setFullScreenFocus(false); };
   const paused = session.status === 'paused';
@@ -4679,6 +4761,50 @@ function FocusScreen(){
   const remainMin = Math.max(1, Math.ceil(remain/60));
   const subjectId = session.subjectId || (c && c.subjectId);
   const prog = c ? getContentProgress(c) : null;
+  const ctxLine = `${(c && c.title) || session.title || subjName(subjectId)}${typeLabel ? ` · ${typeLabel}` : ''}`;
+  const heading = topic ? topic.t : (session.title || 'Sessão de foco');
+  const statusLine = paused ? `Pausado. Faltam ${remainMin} min para a meta de ${session.plannedMin} min.` : `para a meta de ${session.plannedMin} min`;
+
+  if(desk){
+    return (
+      <ModalShell variant="full" z={50} onClose={close} labelledBy="focus-title">
+        <div className="sf-focus-desk">
+          <div className="sf-focus-desk-top">
+            <button type="button" onClick={close} className="sf-btn sf-btn-ghost h-11 px-3 -ml-3 text-[15px] font-semibold inline-flex items-center gap-2">
+              <span className="inline-flex" style={{transform:'rotate(180deg)'}} aria-hidden="true"><IconChevronUp size={18}/></span>Recolher
+            </button>
+            <p key={paused ? 'p' : 'r'} className="sf-swap text-[15px] leading-[20px] font-semibold text-sf-muted inline-flex items-center gap-2">
+              <span className="sf-focus-dot" data-paused={paused ? 'true' : 'false'} aria-hidden="true"/>{paused ? 'Sessão pausada' : 'Sessão de foco'}
+            </p>
+            <span className="text-[14px] leading-[20px] text-sf-muted tnum justify-self-end">Esc para recolher</span>
+          </div>
+          <div className="sf-focus-desk-main">
+            <p className="flex items-center justify-center gap-2 max-w-full">
+              <SubjectTile subjectId={subjectId} size="sm"/>
+              <span className="sf-ed-content text-sf-muted truncate">{ctxLine}</span>
+            </p>
+            <h2 id="focus-title" className="sf-wide-h text-sf-text mt-4">{heading}</h2>
+            <p className="sf-focus-desk-time tnum" role="timer" aria-label={`${remainMin} minutos para a meta`}>{fmtMMSS(remain)}</p>
+            <p key={paused ? 'p' : 'r'} className="sf-swap text-[17px] leading-[24px] text-sf-muted">{statusLine}</p>
+            <p className="text-[15px] leading-[22px] text-sf-muted mt-1 tnum">{fmtMMSS(elapsedSec)} de foco nesta sessão</p>
+            <div className="sf-focus-desk-actions">
+              {paused
+                ? <button type="button" onClick={resumeSession} className="sf-btn sf-btn-primary h-12 px-8 text-[15px] min-w-[200px] inline-flex items-center justify-center gap-2"><IconPlay size={14}/> Retomar</button>
+                : <button type="button" onClick={()=>pauseSession()} className="sf-btn sf-btn-secondary h-12 px-8 text-[15px] min-w-[200px] inline-flex items-center justify-center gap-2"><IconPause size={18}/> Pausar</button>}
+              <button type="button" onClick={()=>setConfirmEnd(true)} className="sf-btn sf-btn-ghost h-12 px-6 text-[15px] font-semibold">Encerrar sessão</button>
+            </div>
+            {prog && prog.total > 0 && (
+              <div className="sf-focus-desk-trail">
+                <SegmentedTrail states={trailStates(c)} label={`Trilha de ${c.title}`}/>
+                <p className="text-[14px] leading-[20px] text-sf-muted mt-3">Trilha: {prog.completed} de {prog.total} módulos concluídos</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
+
   return (
     <ModalShell variant="full" z={50} onClose={close} labelledBy="focus-title">
       <div className="sf-focus-inner pt-6 px-5 pb-8 min-h-[100dvh] flex flex-col">
@@ -4689,13 +4815,11 @@ function FocusScreen(){
         <div className="flex-1 flex flex-col justify-center py-8">
           <p className="flex items-center gap-2">
             <SubjectTile subjectId={subjectId} size="sm"/>
-            <span className="sf-ed-content text-sf-muted truncate">{(c && c.title) || session.title || subjName(subjectId)}{typeLabel ? ` · ${typeLabel}` : ''}</span>
+            <span className="sf-ed-content text-sf-muted truncate">{ctxLine}</span>
           </p>
-          <h2 id="focus-title" className="sf-ed-title text-sf-text mt-3">{topic ? topic.t : (session.title || 'Sessão de foco')}</h2>
+          <h2 id="focus-title" className="sf-ed-title text-sf-text mt-3">{heading}</h2>
           <p className="text-[64px] leading-[72px] font-bold text-sf-text tnum mt-6" style={{letterSpacing:'-.02em'}} role="timer" aria-label={`${remainMin} minutos para a meta`}>{fmtMMSS(remain)}</p>
-          <p key={paused ? 'p' : 'r'} className="sf-swap text-[14px] leading-[20px] text-sf-muted mt-1">
-            {paused ? `Pausado. Faltam ${remainMin} min para a meta de ${session.plannedMin} min.` : `para a meta de ${session.plannedMin} min`}
-          </p>
+          <p key={paused ? 'p' : 'r'} className="sf-swap text-[14px] leading-[20px] text-sf-muted mt-1">{statusLine}</p>
           <p className="text-[14px] leading-[20px] text-sf-muted mt-1 tnum">{fmtMMSS(elapsedSec)} de foco nesta sessão</p>
           {prog && prog.total > 0 && (
             <>
@@ -5675,9 +5799,14 @@ function ColorPicker({id, value, onChange}){
 }
 
 function SubjectSheetForm({sheet}){
-  const {closeSubjectSheet, saveSubject, subjectsStore} = useApp();
+  const {closeSubjectSheet, saveSubject, subjectsStore, addUserSubject, openDetalhe} = useApp();
   const band = useBand();
   const editingId = sheet.id || null;
+  /* Matéria nova nasce com o primeiro conteúdo (obrigatório). A exceção é quando a folha abre de dentro de
+     "Criar conteúdo": ali o título do conteúdo é pedido logo em seguida, então não perguntamos duas vezes. */
+  const askFirst = !editingId && !sheet.skipFirstContent;
+  const [firstContent, setFirstContent] = useState('');
+  const firstRef = useRef(null);
   const builtin = !!editingId && (editingId in BUILTIN_SUBJECTS);
   const [name, setName] = useState(()=>{
     if(!editingId) return '';
@@ -5697,7 +5826,8 @@ function SubjectSheetForm({sheet}){
   const [showErr, setShowErr] = useState(false);
   const nameRef = useRef(null);
   const emojiRef = useRef(null);
-  const valid = (builtin || name.trim().length>0) && (kind === 'icon' || !!emoji);
+  const firstOk = !askFirst || firstContent.trim().length > 0;
+  const valid = (builtin || name.trim().length>0) && (kind === 'icon' || !!emoji) && firstOk;
   const ident = kind === 'emoji' && emoji ? {type:'emoji', emoji} : {type:'icon', icon};
   const desk = band !== 'mobile';
 
@@ -5707,10 +5837,20 @@ function SubjectSheetForm({sheet}){
   const save = ()=>{
     if(!(builtin || name.trim().length>0)){ setShowErr(true); if(nameRef.current) nameRef.current.focus(); return; }
     if(dupId){ setShowErr(true); if(nameRef.current) nameRef.current.focus(); return; }
+    if(!firstOk){ setShowErr(true); if(firstRef.current) firstRef.current.focus(); return; }
     if(kind === 'emoji' && !emoji){ setShowErr(true); if(emojiRef.current) emojiRef.current.focus(); return; }
     const id = saveSubject({id: editingId || undefined, name, ident, accent});
+    let contentId = null;
+    if(askFirst){
+      contentId = addUserSubject({
+        id: 'user-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+        title: firstContent.trim().slice(0, 80), subjectId: id, unitLabel: '', topics: [],
+      });
+    }
     if(sheet.onSaved) sheet.onSaved(id);
     closeSubjectSheet();
+    /* Criada pelo Explorar: abre o primeiro conteúdo, que já começa a montar a trilha. */
+    if(contentId && !sheet.onSaved) openDetalhe(contentId);
   };
   const onEmoji = (raw)=>{ const g = firstEmoji(raw); if(g){ setEmoji(g); setEmojiRaw(''); } else setEmojiRaw(raw); };
   const shownName = (builtin ? subjName(editingId) : name.trim()) || 'Nova matéria';
@@ -5734,6 +5874,18 @@ function SubjectSheetForm({sheet}){
       {builtin && <p id="subject-name-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">Nas matérias que já vêm no Study, dá para trocar o ícone e a cor, mas não o nome.</p>}
       {showErr && !builtin && !name.trim() && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Dê um nome para a matéria.</p>}
       {dupId && <p id="subject-name-err" role="alert" className="text-[13px] text-sf-error mt-2">Já existe a matéria {subjName(dupId)}. Use outro nome ou escolha a matéria existente.</p>}
+
+      {askFirst && (
+        <>
+          <label htmlFor="subject-first-content" className="block text-[15px] leading-[20px] font-semibold text-sf-muted mt-5 mb-2">Conteúdo</label>
+          <input id="subject-first-content" ref={firstRef} value={firstContent} onChange={e=>setFirstContent(e.target.value)} maxLength={80}
+            placeholder="Primeiro conteúdo" className={INPUT_CLS} required aria-required="true"
+            aria-invalid={showErr && !firstOk ? 'true' : undefined} aria-describedby={showErr && !firstOk ? 'subject-first-err' : 'subject-first-hint'}/>
+          {showErr && !firstOk
+            ? <p id="subject-first-err" role="alert" className="text-[13px] text-sf-error mt-2">Diga o primeiro conteúdo que você quer aprender nessa matéria.</p>
+            : <p id="subject-first-hint" className="text-[13px] leading-[16px] text-sf-muted mt-2">O que você quer aprender primeiro. O Study monta a trilha a partir disso.</p>}
+        </>
+      )}
 
       <p id="subject-ident-label" className="text-[15px] leading-[20px] font-semibold text-sf-muted mt-5 mb-2">Identificação</p>
       <div className="sf-seg w-full" role="radiogroup" aria-labelledby="subject-ident-label">
@@ -6107,6 +6259,7 @@ function PerfilScreen(){
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState('');
   const isLocal = user.kind === 'local';
+  const desk = isDeskBand(useBand());
   const recent = liveSessions.slice(-4).reverse().map(s=>{
     const c = contents.find(x=>x.id===s.contentId);
     return { id: s.id, title: c ? c.title : (s.title || 'Sessão de foco'), min: s.durationMin, when: sessionWhen(s), subjectId: (c && c.subjectId) || s.subjectId };
@@ -6114,7 +6267,8 @@ function PerfilScreen(){
   const menu = [
     {Icon:IconMap, label:'Trilhas', action:()=>openJornada()},
     {Icon:IconBook, label:'Matérias', action:openMaterias},
-    {Icon:IconSettings, label:'Configurações', action:openConfiguracoes},
+    /* No computador, Configurações fica na navegação lateral. */
+    ...(desk ? [] : [{Icon:IconSettings, label:'Configurações', action:openConfiguracoes}]),
     {Icon:IconHelp, label:'Ajuda', action:()=>goToView({name:'ajuda'})},
   ];
   return (
@@ -6429,7 +6583,7 @@ function CriarConteudoScreen({initialSubjectId}){
               <span className="inline-flex" aria-hidden="true"><SubjectGlyph subjectId={k} size={16}/></span>{subjName(k)}
             </button>
           ))}
-          <button type="button" onClick={()=>openSubjectSheet({onSaved:(id)=>setSubjectId(id)})}
+          <button type="button" onClick={()=>openSubjectSheet({skipFirstContent:true, onSaved:(id)=>setSubjectId(id)})}
             className="sf-chip px-3.5 h-11 rounded-xl text-[14px]" style={{borderStyle:'dashed'}}>+ Nova matéria</button>
         </div>
         {showErr && !subjOk && <p id="cc-subj-err" role="alert" className="text-[12px] text-sf-error mt-2">Escolha a matéria onde o conteúdo vai ficar.</p>}
