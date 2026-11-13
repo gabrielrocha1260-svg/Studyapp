@@ -540,17 +540,8 @@
   /* Explorar: busca + "Criar conteúdo" na mesma linha. A busca começa alinhada ao título e vai até o botão, que fica na borda direita. */
   .sf-explore-bar{ display:flex; align-items:center; gap:8px; }
   .sf-explore-bar > .sf-subj-search{ flex:1 1 auto; min-width:0; }
-  @media (max-width:479px){ .sf-explore-bar .sf-create-label{ display:none; } .sf-explore-bar .sf-create-menu > button{ width:48px; padding:0; justify-content:center; } }
+  @media (max-width:479px){ .sf-explore-bar .sf-create-label{ display:none; } .sf-explore-bar .sf-create-btn{ width:48px; padding:0; justify-content:center; } }
   @media (min-width:1024px){ .sf-desk .sf-explore-bar{ gap:12px; margin-top:24px; } }
-  .sf-create-menu{ position:relative; flex:none; }
-  .sf-create-list{ position:absolute; right:0; top:calc(100% + 8px); z-index:40; width:300px; padding:6px; border-radius:var(--radius-lg);
-    background:var(--bg-surface); border:1px solid var(--border); box-shadow:var(--shadow-modal); animation:sfpop var(--dur-fast) var(--ease-out) both; }
-  .sf-create-item{ display:flex; align-items:center; gap:12px; width:100%; min-height:56px; padding:8px 10px; border:0; border-radius:var(--radius-md);
-    background:transparent; font:inherit; cursor:pointer; text-align:left; }
-  .sf-create-item:focus-visible{ outline-offset:-2px; }
-  @media (hover:hover){ .sf-create-item:hover{ background:var(--bg-elevated); } }
-  .sf-create-item:focus{ background:var(--bg-elevated); }
-  .sf-create-ic{ width:36px; height:36px; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:var(--brand-tint-2); color:var(--blue-300); }
   .sf-subj-masonry{ display:flex; gap:12px; align-items:flex-start; }
   .sf-subj-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:12px; }
   .sf-subj-col > li{ background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:0 16px; }
@@ -4089,58 +4080,6 @@ function contentStateLabel(c){
   return modulesLabel(c);
 }
 function EnemTag(){ return <span className="sf-enem-tag">Cai no ENEM</span>; }
-/* Botão "+ Criar conteúdo" do Explorar: abre uma lista com as duas formas de criar.
-   Criar matéria (nova pasta, já com o primeiro conteúdo) ou criar conteúdo dentro de uma matéria que já existe. */
-function CreateMenu({lock, isVisitor, onSubject, onContent}){
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  const btnRef = useRef(null);
-  const itemsRef = useRef([]);
-  useEffect(()=>{
-    if(!open) return;
-    const onDoc = (e)=>{ if(wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    const onKey = (e)=>{ if(e.key === 'Escape'){ e.stopPropagation(); setOpen(false); if(btnRef.current) btnRef.current.focus(); } };
-    document.addEventListener('pointerdown', onDoc);
-    document.addEventListener('keydown', onKey, true);
-    const t = setTimeout(()=>{ if(itemsRef.current[0]) itemsRef.current[0].focus(); }, 0);
-    return ()=>{ document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey, true); clearTimeout(t); };
-  }, [open]);
-  const pick = (fn)=>{ setOpen(false); fn(); };
-  const onMenuKey = (e)=>{
-    const list = itemsRef.current.filter(Boolean);
-    const i = list.indexOf(document.activeElement);
-    if(e.key === 'ArrowDown'){ e.preventDefault(); list[(i + 1) % list.length].focus(); }
-    else if(e.key === 'ArrowUp'){ e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
-    else if(e.key === 'Tab'){ setOpen(false); }
-  };
-  const items = [
-    {key:'materia', label:'Criar matéria', hint:'Uma matéria nova, já com o primeiro conteúdo', Icon:IconBook, on:onSubject},
-    {key:'conteudo', label:'Criar conteúdo', hint:'Dentro de uma matéria que você já tem', Icon:IconPlus, on:onContent},
-  ];
-  return (
-    <div className="sf-create-menu" ref={wrapRef}>
-      <button type="button" ref={btnRef} onClick={()=>setOpen(o=>!o)} aria-haspopup="menu" aria-expanded={open} aria-controls="sf-create-list"
-        className="sf-btn sf-btn-primary h-12 px-4 text-[15px] font-semibold inline-flex items-center gap-2 whitespace-nowrap"
-        aria-label={isVisitor ? 'Criar conteúdo (pede um perfil)' : 'Criar conteúdo'}>
-        <IconPlus size={18}/><span className="sf-create-label">Criar conteúdo</span>
-      </button>
-      {open && (
-        <div id="sf-create-list" role="menu" aria-label="O que você quer criar?" className="sf-create-list" onKeyDown={onMenuKey}>
-          {items.map((it, i)=>(
-            <button key={it.key} type="button" role="menuitem" ref={el => itemsRef.current[i] = el} onClick={()=>pick(it.on)} className="sf-create-item">
-              <span className="sf-create-ic" aria-hidden="true"><it.Icon size={18}/></span>
-              <span className="min-w-0 flex flex-col text-left">
-                <span className="text-[15px] leading-[20px] font-semibold text-sf-text inline-flex items-center gap-1.5">{it.label}{lock}</span>
-                <span className="text-[13px] leading-[18px] text-sf-muted">{it.hint}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd, onPreview, onDelete}){
   const [stored, setStored] = useDrawerState(`materia:${sid}`);
   const open = searching ? true : stored;
@@ -4161,14 +4100,13 @@ function SubjectDrawer({sid, items, suggestions, searching, onOpenContent, onAdd
           {orphan ? <span className="sf-subj" aria-hidden="true" style={{width:44, height:44, borderRadius:12}}><IconBook size={20}/></span> : <SubjectTile subjectId={sid}/>}
           <span className="flex-1 min-w-0" aria-hidden="true">
             <span className="block text-[17px] leading-[22px] font-semibold text-sf-text truncate">{name}</span>
-            <span className="block text-[14px] leading-[18px] text-sf-muted mt-0.5 tnum">{line}</span>
-            {sum.modTotal > 0 && (
-              <span className="block mt-2 max-w-[220px]">
-                <span className="block rounded-full bg-sf-overlay" style={{height:3}}>
-                  <span className="block rounded-full" style={{height:3, width:`${sum.pct}%`, background: sum.pct >= 100 ? 'var(--success)' : 'var(--blue-400)'}}/>
-                </span>
+            <span className="block text-[14px] leading-[18px] text-sf-muted mt-0.5 tnum truncate">{line}</span>
+            {/* A linha da barra existe em todos os cartões (invisível quando não há módulos), para todos terem a mesma altura. */}
+            <span className="block mt-2 max-w-[220px]" style={sum.modTotal > 0 ? undefined : {visibility:'hidden'}}>
+              <span className="block rounded-full bg-sf-overlay" style={{height:3}}>
+                <span className="block rounded-full" style={{height:3, width:`${sum.modTotal > 0 ? sum.pct : 0}%`, background: sum.pct >= 100 ? 'var(--success)' : 'var(--blue-400)'}}/>
               </span>
-            )}
+            </span>
           </span>
           <span className="text-sf-muted shrink-0 inline-flex" aria-hidden="true" style={{transform:`rotate(${open ? 90 : 0}deg)`, transition:'transform var(--dur-base) var(--ease-out)'}}><IconChevronR/></span>
         </button>
@@ -4277,7 +4215,7 @@ function ExplorarScreen(){
     <div className="sf-wide pt-16 px-5 pb-8">
       <ScreenTitle>Explorar</ScreenTitle>
 
-      {/* Busca centralizada na tela; o botão "+ Criar conteúdo" fica ao lado e abre a escolha entre matéria e conteúdo. */}
+      {/* Busca alinhada ao título; o botão "+ Criar conteúdo" leva à tela de criação, onde também dá para criar uma matéria nova. */}
       <div className="sf-explore-bar mt-5">
         <label className="sf-fieldbox sf-subj-search h-12 rounded-xl flex items-center px-3.5 gap-2.5 cursor-text">
           <span className="text-sf-muted inline-flex" aria-hidden="true"><IconSearch size={20}/></span>
@@ -4286,7 +4224,10 @@ function ExplorarScreen(){
             className="bg-transparent border-0 outline-none text-[16px] text-sf-text flex-1 min-w-0 h-11" style={{fontFamily:'inherit'}}/>
           {query && <button type="button" onClick={()=>setQuery('')} aria-label="Limpar busca" className="sf-btn sf-btn-ghost h-11 px-3 -mr-2 text-[14px]">Limpar</button>}
         </label>
-        <CreateMenu lock={lock} isVisitor={isVisitor} onSubject={()=>openSubjectSheet({})} onContent={()=>openCriarConteudo()}/>
+        <button type="button" onClick={()=>openCriarConteudo()} className="sf-btn sf-btn-primary sf-create-btn h-12 px-4 text-[15px] font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0"
+          aria-label={isVisitor ? 'Criar conteúdo (pede um perfil)' : 'Criar conteúdo'}>
+          {lock}<IconPlus size={18}/><span className="sf-create-label">Criar conteúdo</span>
+        </button>
       </div>
 
       {searching && groups.length === 0 ? (
